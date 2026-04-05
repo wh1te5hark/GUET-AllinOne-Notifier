@@ -46,11 +46,17 @@
 
       <mdui-navigation-drawer id="nav-drawer" close-on-overlay-click>
         <div class="drawer-header">
-          <div class="drawer-mark">G</div>
-          <div>
-            <div class="drawer-title">GUET Notifier</div>
-            <div class="drawer-subtitle" id="drawer-account">统一消息推送平台</div>
+          <div class="drawer-avatar">
+            <img id="drawer-avatar-img" class="drawer-avatar-img" alt="侧栏头像" style="display:none" />
+            <span id="drawer-avatar-fallback" class="drawer-avatar-fallback">G</span>
           </div>
+          <div>
+            <div class="drawer-title" id="drawer-display-name">未登录</div>
+            <div class="drawer-subtitle" id="drawer-account">当前账号：--</div>
+          </div>
+        </div>
+        <div class="drawer-user-actions">
+          <mdui-button id="drawer-logout-btn" variant="outlined" full-width>退出登录</mdui-button>
         </div>
         <mdui-list>
           <mdui-list-item href="#/home" icon="home">主页</mdui-list-item>
