@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GUET All-in-One Notifier</title>
+    <meta
+      name="description"
+      content="桂电消息统一采集与推送平台，聚合教务、畅课、电费、水费与校园卡等通知。"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
+    />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+    <link rel="stylesheet" href="https://unpkg.com/mdui@2/mdui.css" />
+    <link rel="stylesheet" href="./assets/app.css" />
+  </head>
+  <body>
+    <mdui-layout>
+      <mdui-top-app-bar class="topbar">
+        <mdui-button-icon id="menu-toggle" icon="menu"></mdui-button-icon>
+        <mdui-top-app-bar-title>GUET Notifier</mdui-top-app-bar-title>
+        <div class="topbar-actions">
+          <mdui-button variant="text" href="#/home">主页</mdui-button>
+          <mdui-button variant="text" href="#/overview">概览</mdui-button>
+        </div>
+        <div id="top-account" class="top-account" style="display:none">未登录</div>
+        <div id="top-user-menu" class="top-user-menu">
+          <button id="top-avatar-trigger" class="avatar-trigger" type="button" aria-label="账户菜单">
+            <img id="top-avatar-img" class="avatar-img" alt="账户头像" style="display:none" />
+            <span id="top-avatar-fallback" class="avatar-fallback">G</span>
+          </button>
+          <div id="top-avatar-panel" class="avatar-panel" hidden>
+            <div id="top-avatar-name" class="avatar-name">未登录</div>
+            <div class="avatar-menu-actions">
+              <button id="menu-profile-btn" class="avatar-menu-item" type="button">个人资料</button>
+              <button id="menu-logout-btn" class="avatar-menu-item danger" type="button">登出 / 切换账号</button>
+            </div>
+          </div>
+        </div>
+        <mdui-tooltip content="切换日夜间主题">
+          <mdui-button-icon id="theme-toggle" icon="dark_mode"></mdui-button-icon>
+        </mdui-tooltip>
+      </mdui-top-app-bar>
+
+      <mdui-navigation-drawer id="nav-drawer" close-on-overlay-click>
+        <div class="drawer-header">
+          <div class="drawer-mark">G</div>
+          <div>
+            <div class="drawer-title">GUET Notifier</div>
+            <div class="drawer-subtitle" id="drawer-account">统一消息推送平台</div>
+          </div>
+        </div>
+        <mdui-list>
+          <mdui-list-item href="#/home" icon="home">主页</mdui-list-item>
+          <mdui-list-item href="#/login" icon="verified_user">登录</mdui-list-item>
+          <mdui-list-item href="#/overview" icon="dashboard">概览</mdui-list-item>
+          <mdui-list-item href="#/collectors" icon="travel_explore">采集器</mdui-list-item>
+          <mdui-list-item href="#/rules" icon="tune">转发规则</mdui-list-item>
+          <mdui-list-item href="#/pushers" icon="notifications_active">推送器</mdui-list-item>
+        </mdui-list>
+        <mdui-divider></mdui-divider>
+        <div class="drawer-theme-panel">
+          <div class="drawer-theme-title">主题模式</div>
+          <div class="drawer-theme-actions">
+            <mdui-button id="theme-mode-auto" variant="outlined" full-width>跟随系统</mdui-button>
+            <mdui-button id="theme-mode-light" variant="outlined" full-width>日间模式</mdui-button>
+            <mdui-button id="theme-mode-dark" variant="outlined" full-width>夜间模式</mdui-button>
+          </div>
+        </div>
+      </mdui-navigation-drawer>
+
+      <mdui-layout-main>
+        <main class="page">
+          <div id="route-view"></div>
+        </main>
+      </mdui-layout-main>
+    </mdui-layout>
+
+    <mdui-dialog id="two-factor-dialog" headline="CAS 二次验证">
+      <div class="two-factor-dialog-content">
+        <p class="two-factor-hint">CAS 需要二次验证，请选择验证方式并完成认证。</p>
+        <div id="two-factor-status" class="two-factor-status"></div>
+        <mdui-select id="two-factor-method-field" label="验证方式" value="sms_code" variant="outlined">
+          <mdui-menu-item value="sms_code">短信验证码</mdui-menu-item>
+          <mdui-menu-item value="wechat_qr">微信扫码</mdui-menu-item>
+        </mdui-select>
+        <div id="sms-panel" class="two-factor-panel">
+          <mdui-text-field
+            id="two-factor-code-field"
+            label="验证码"
+            variant="outlined"
+            maxlength="16"
+            helper="收到短信后在此输入验证码"
+          ></mdui-text-field>
+          <div class="two-factor-dialog-actions">
+            <mdui-button type="button" variant="tonal" id="send-2fa-code-btn">发送短信验证码</mdui-button>
+            <mdui-button type="button" variant="filled" id="verify-2fa-btn">提交验证码</mdui-button>
+          </div>
+        </div>
+        <div id="wechat-panel" class="two-factor-panel" style="display:none">
+          <div id="wechat-qr-area" class="wechat-qr-area">
+            <p class="wechat-qr-hint">点击下方按钮获取微信二维码</p>
+            <img id="wechat-qr-img" class="wechat-qr-img" alt="微信二维码" style="display:none" />
+            <div id="wechat-qr-overlay" class="wechat-qr-overlay" style="display:none"></div>
+          </div>
+          <mdui-button type="button" variant="tonal" id="open-wechat-2fa-btn" full-width>获取微信二维码</mdui-button>
+        </div>
+      </div>
+      <mdui-button slot="action" variant="text" id="close-2fa-dialog-btn">稍后处理</mdui-button>
+    </mdui-dialog>
+
+    <script type="module" src="https://unpkg.com/mdui@2/mdui.global.js"></script>
+    <script type="module" src="./assets/app.js"></script>
+  </body>
+</html>

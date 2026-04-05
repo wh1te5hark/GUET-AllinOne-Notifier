@@ -1,0 +1,44 @@
+[project]
+name = "guet-notifier"
+version = "0.1.0"
+description = "桂林电子科技大学消息全能推送平台后端服务"
+readme = "README.md"
+license = { text = "BSD-3-Clause" }
+authors = [{ name = "Whiteshark" }]
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[project.scripts]
+guet-notifier = "guet_notifier.__main__:main"
+dev = "guet_notifier.__main__:dev"
+
+[build-system]
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{ include = "guet_notifier", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "0.115.6"
+httpx = "0.28.1"
+pycryptodome = "3.23.0"
+sqlalchemy = "2.0.36"
+uvicorn = { version = "0.32.1", extras = ["standard"] }
+
+[tool.poetry.group.dev.dependencies]
+pytest = "8.3.4"
+ruff = "0.8.4"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
