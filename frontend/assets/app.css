@@ -187,14 +187,27 @@ mdui-button[variant="text"] {
   padding: 1rem 1rem 0.75rem;
 }
 
-.drawer-mark {
+.drawer-avatar {
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: 0.9rem;
+  border-radius: 999px;
+  overflow: hidden;
   display: grid;
   place-items: center;
   background: var(--guet-primary-soft);
   color: var(--guet-primary);
+  font-weight: 700;
+  border: 1px solid var(--guet-line);
+}
+
+.drawer-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.drawer-avatar-fallback {
+  font-size: 0.82rem;
   font-weight: 700;
 }
 
@@ -205,6 +218,10 @@ mdui-button[variant="text"] {
 .drawer-subtitle {
   color: var(--guet-muted);
   font-size: 0.86rem;
+}
+
+.drawer-user-actions {
+  padding: 0 1rem 0.75rem;
 }
 
 .drawer-theme-panel {

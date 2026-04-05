@@ -13,6 +13,10 @@ const themeModeDarkButton = document.querySelector('#theme-mode-dark');
 const routeView = document.querySelector('#route-view');
 const topAccount = document.querySelector('#top-account');
 const drawerAccount = document.querySelector('#drawer-account');
+const drawerDisplayName = document.querySelector('#drawer-display-name');
+const drawerAvatarImg = document.querySelector('#drawer-avatar-img');
+const drawerAvatarFallback = document.querySelector('#drawer-avatar-fallback');
+const drawerLogoutButton = document.querySelector('#drawer-logout-btn');
 const topAvatarTrigger = document.querySelector('#top-avatar-trigger');
 const topAvatarPanel = document.querySelector('#top-avatar-panel');
 const topAvatarImg = document.querySelector('#top-avatar-img');
@@ -54,11 +58,40 @@ const appState = {
     loading: false,
     error: '',
   },
+  smartCampus: {
+    messages: [],
+    loading: false,
+    error: '',
+    updatedAt: '',
+    setting: {
+      enabled: true,
+      schedule_mode: 'visual',
+      cron_expr: '*/30 * * * *',
+      visual_mode: 'every_n_minutes',
+      interval_minutes: 30,
+      daily_time: '08:00',
+    },
+    query: {
+      q: '',
+      sender: '',
+      read_state: 'all',
+      sort_by: 'fetched_at',
+      sort_dir: 'desc',
+    },
+  },
 };
 
 let pendingChallenge = null;
 let pendingMethods = [];
 let wechatPollTimer = null;
+
+function resolveNickname(user) {
+  if (!user) return '未登录';
+  return String(user.display_name || '').trim()
+    || String(user.real_name || '').trim()
+    || String(user.student_id || '').trim()
+    || '未登录';
+}
 
 function getRouteFromHash() {
   const raw = window.location.hash.replace(/^#/, '');
@@ -79,11 +112,13 @@ function updateActiveRouteInDrawer(route) {
 
 function updateAccountDisplay() {
   const user = appState.currentUser;
-  const label = user ? `${user.display_name || user.student_id}` : '未登录';
-  if (topAccount) topAccount.textContent = label;
-  if (drawerAccount) drawerAccount.textContent = user ? `当前账号：${label}` : '统一消息推送平台';
-  if (topAvatarName) topAvatarName.textContent = user ? `${label} (${user.student_id || ''})` : '未登录';
+  const label = resolveNickname(user);
+  const student = user?.student_id || '--';
   const avatar = user?.avatar_base64 || '';
+  if (topAccount) topAccount.textContent = label;
+  if (drawerDisplayName) drawerDisplayName.textContent = label;
+  if (drawerAccount) drawerAccount.textContent = `当前账号：${student}`;
+  if (topAvatarName) topAvatarName.textContent = user ? `${label} (${user.student_id || ''})` : '未登录';
   if (topAvatarImg && topAvatarFallback) {
     if (avatar) {
       topAvatarImg.src = avatar;
@@ -94,6 +129,18 @@ function updateAccountDisplay() {
       topAvatarImg.style.display = 'none';
       topAvatarFallback.style.display = '';
       topAvatarFallback.textContent = (label || 'G').trim().slice(0, 1).toUpperCase();
+    }
+  }
+  if (drawerAvatarImg && drawerAvatarFallback) {
+    if (avatar) {
+      drawerAvatarImg.src = avatar;
+      drawerAvatarImg.style.display = '';
+      drawerAvatarFallback.style.display = 'none';
+    } else {
+      drawerAvatarImg.src = '';
+      drawerAvatarImg.style.display = 'none';
+      drawerAvatarFallback.style.display = '';
+      drawerAvatarFallback.textContent = (label || 'G').trim().slice(0, 1).toUpperCase();
     }
   }
 }
@@ -250,7 +297,7 @@ function renderLogin() {
 function renderOverview() {
   const realtime = appState.realtime;
   const userStudentId = realtime.user?.student_id || '--';
-  const userDisplayName = realtime.user?.display_name || '--';
+  const userRealName = realtime.user?.real_name || '--';
   const avatar = realtime.user?.avatar_base64 || '';
   const healthStatus = realtime.health?.status || '--';
   const updatedAt = realtime.updatedAt || '--';
@@ -265,7 +312,7 @@ function renderOverview() {
         <mdui-card class="summary-card">
           <div class="summary-label">当前学号</div>
           <div class="summary-value" id="overview-student-id">${userStudentId}</div>
-          <div class="summary-note" id="overview-display-name">显示名：${userDisplayName}</div>
+          <div class="summary-note" id="overview-display-name">真实姓名：${userRealName}</div>
         </mdui-card>
         <mdui-card class="summary-card">
           <div class="summary-label">后端状态</div>
@@ -317,6 +364,87 @@ function renderOverview() {
   `;
 }
 
+function renderCollectors() {
+  const sc = appState.smartCampus;
+  const s = sc.setting || {};
+  const q = sc.query || {};
+  const rows = (sc.messages || [])
+    .map((item) => `
+      <article class="timeline-item">
+        <header>
+          <strong>${item.sender || '系统通知'}</strong>
+          <time>${item.occurred_at_text || item.fetched_at || '--'}</time>
+        </header>
+        <div class="timeline-title">${item.title || '(无标题)'}</div>
+        <p style="margin:0.25rem 0;color:var(--guet-muted);font-size:0.85rem;">状态：${item.is_marked_read ? '已读' : '未读'} | ID：${item.external_id || '--'}</p>
+        <p>${item.content_text || item.content_html || ''}</p>
+      </article>
+    `)
+    .join('');
+  return `
+    <section class="lower-grid">
+      <mdui-card class="panel-card" style="grid-column:1 / -1">
+        <div class="panel-title">智慧校园通知采集器</div>
+        <p class="panel-desc">数据源：pcportal 消息中心 receiveBox。同步后会调用详情接口标记已读以提高增量效率。</p>
+        <div class="panel-title" style="font-size:1rem;margin-top:0.8rem;">采集时间设置</div>
+        <div class="overview-actions" style="margin-top:0.6rem;flex-wrap:wrap;">
+          <mdui-select id="sc-schedule-mode" value="${s.schedule_mode || 'visual'}" label="调度模式" variant="outlined" style="min-width:180px;">
+            <mdui-menu-item value="visual">可视化</mdui-menu-item>
+            <mdui-menu-item value="cron">Cron 表达式</mdui-menu-item>
+          </mdui-select>
+          <mdui-switch id="sc-enabled-switch" ${s.enabled ? 'checked' : ''}>启用采集器</mdui-switch>
+        </div>
+        <div id="sc-visual-settings" style="${(s.schedule_mode || 'visual') === 'visual' ? '' : 'display:none;'}">
+          <div class="overview-actions" style="margin-top:0.6rem;flex-wrap:wrap;">
+            <mdui-select id="sc-visual-mode" value="${s.visual_mode || 'every_n_minutes'}" label="可视化频率" variant="outlined" style="min-width:180px;">
+              <mdui-menu-item value="every_n_minutes">每 N 分钟</mdui-menu-item>
+              <mdui-menu-item value="daily_time">每天固定时间</mdui-menu-item>
+            </mdui-select>
+            <mdui-text-field id="sc-interval-minutes" type="number" label="间隔分钟" variant="outlined" min="1" max="1440" value="${s.interval_minutes || 30}" style="min-width:160px;"></mdui-text-field>
+            <mdui-text-field id="sc-daily-time" type="time" label="每日时间" variant="outlined" value="${s.daily_time || '08:00'}" style="min-width:160px;"></mdui-text-field>
+          </div>
+        </div>
+        <div id="sc-cron-settings" style="${(s.schedule_mode || 'visual') === 'cron' ? '' : 'display:none;'}">
+          <mdui-text-field id="sc-cron-expr" label="Cron 表达式" variant="outlined" value="${s.cron_expr || '*/30 * * * *'}" helper="示例：*/30 * * * *"></mdui-text-field>
+        </div>
+        <div class="overview-actions" style="margin-top:0.8rem">
+          <mdui-button type="button" variant="tonal" id="save-smart-campus-settings-btn">保存设置</mdui-button>
+          <mdui-button type="button" variant="filled" id="sync-smart-campus-btn">同步通知</mdui-button>
+          <mdui-button type="button" variant="outlined" id="refresh-smart-campus-btn">刷新本地记录</mdui-button>
+        </div>
+        <div id="smart-campus-status" class="result-card ${sc.error ? 'error' : 'muted'}" style="margin-top:0.8rem">
+          ${sc.error ? sc.error : (sc.loading ? '正在同步智慧校园通知…' : `最近更新时间：${sc.updatedAt || '--'}`)}
+        </div>
+      </mdui-card>
+      <mdui-card class="panel-card" style="grid-column:1 / -1">
+        <div class="panel-title">通知列表</div>
+        <div class="overview-actions" style="margin:0.6rem 0;flex-wrap:wrap;">
+          <mdui-text-field id="sc-search-q" label="关键词" variant="outlined" value="${q.q || ''}" style="min-width:220px;"></mdui-text-field>
+          <mdui-text-field id="sc-search-sender" label="发送方" variant="outlined" value="${q.sender || ''}" style="min-width:180px;"></mdui-text-field>
+          <mdui-select id="sc-read-state" value="${q.read_state || 'all'}" label="已读筛选" variant="outlined" style="min-width:140px;">
+            <mdui-menu-item value="all">全部</mdui-menu-item>
+            <mdui-menu-item value="read">仅已读</mdui-menu-item>
+            <mdui-menu-item value="unread">仅未读</mdui-menu-item>
+          </mdui-select>
+          <mdui-select id="sc-sort-by" value="${q.sort_by || 'fetched_at'}" label="排序字段" variant="outlined" style="min-width:160px;">
+            <mdui-menu-item value="fetched_at">采集时间</mdui-menu-item>
+            <mdui-menu-item value="occurred_at_text">通知时间</mdui-menu-item>
+            <mdui-menu-item value="title">标题</mdui-menu-item>
+            <mdui-menu-item value="sender">发送方</mdui-menu-item>
+          </mdui-select>
+          <mdui-select id="sc-sort-dir" value="${q.sort_dir || 'desc'}" label="顺序" variant="outlined" style="min-width:120px;">
+            <mdui-menu-item value="desc">降序</mdui-menu-item>
+            <mdui-menu-item value="asc">升序</mdui-menu-item>
+          </mdui-select>
+          <mdui-button type="button" variant="outlined" id="apply-smart-campus-query-btn">应用筛选</mdui-button>
+          <mdui-button type="button" variant="text" id="reset-smart-campus-query-btn">重置</mdui-button>
+        </div>
+        <div id="smart-campus-list" class="timeline">${rows || '<p class="panel-desc">暂无通知，先点击“同步通知”。</p>'}</div>
+      </mdui-card>
+    </section>
+  `;
+}
+
 function renderSkeleton(title, rows) {
   return `
     <section class="lower-grid">
@@ -350,11 +478,7 @@ function renderRoute(route) {
   if (route === '/login') return renderLogin();
   if (route === '/overview') return renderOverview();
   if (route === '/collectors') {
-    return renderSkeleton('采集器', [
-      { title: '教务采集器', label: 'CAS / 教务', desc: '安装、配置与运行状态管理。', status: '骨架' },
-      { title: '畅课采集器', label: '畅课', desc: '课程作业、公告同步配置。', status: '骨架' },
-      { title: '能耗采集器', label: '电费 / 水费', desc: '阈值与周期采集策略。', status: '骨架' },
-    ]);
+    return renderCollectors();
   }
   if (route === '/rules') {
     return renderSkeleton('转发规则', [
@@ -390,6 +514,35 @@ function bindRouteEvents(route) {
   }
   if (route === '/home') renderTimeline('home-timeline-list');
   if (route === '/overview') renderTimeline('overview-timeline-list');
+  if (route === '/collectors') {
+    document.querySelector('#save-smart-campus-settings-btn')?.addEventListener('click', () => {
+      void saveSmartCampusSettings();
+    });
+    document.querySelector('#sc-schedule-mode')?.addEventListener('change', () => {
+      toggleSmartCampusScheduleMode();
+    });
+    document.querySelector('#apply-smart-campus-query-btn')?.addEventListener('click', () => {
+      void applySmartCampusQuery();
+    });
+    document.querySelector('#reset-smart-campus-query-btn')?.addEventListener('click', () => {
+      resetSmartCampusQuery();
+    });
+    document.querySelector('#sc-search-q')?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') void applySmartCampusQuery();
+    });
+    document.querySelector('#sc-search-sender')?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') void applySmartCampusQuery();
+    });
+    document.querySelector('#sync-smart-campus-btn')?.addEventListener('click', () => {
+      void syncSmartCampusMessages();
+    });
+    document.querySelector('#refresh-smart-campus-btn')?.addEventListener('click', () => {
+      void loadSmartCampusMessages();
+    });
+    toggleSmartCampusScheduleMode();
+    void loadSmartCampusSettings(true);
+    void loadSmartCampusMessages(true);
+  }
 }
 
 function applyRealtimeToOverviewDom() {
@@ -403,7 +556,7 @@ function applyRealtimeToOverviewDom() {
   const errorBox = document.querySelector('#overview-error');
   const cookieBox = document.querySelector('#overview-cookie-box');
   if (student) student.textContent = realtime.user?.student_id || '--';
-  if (displayName) displayName.textContent = `显示名：${realtime.user?.display_name || '--'}`;
+  if (displayName) displayName.textContent = `真实姓名：${realtime.user?.real_name || '--'}`;
   if (health) health.textContent = realtime.health?.status || '--';
   if (updatedAt) updatedAt.textContent = realtime.updatedAt || '--';
   if (loadingNote) loadingNote.textContent = realtime.loading ? '正在刷新…' : '点击按钮可手动刷新';
@@ -506,6 +659,9 @@ function clearLocalAuth() {
   appState.currentUser = null;
   appState.lastLoginResult = null;
   appState.storedCookies = [];
+  appState.smartCampus.messages = [];
+  appState.smartCampus.error = '';
+  appState.smartCampus.updatedAt = '';
   if (topAvatarPanel) topAvatarPanel.hidden = true;
   updateAccountDisplay();
 }
@@ -542,6 +698,7 @@ function handleLoginSuccess(data) {
   closeTwoFactorDialog();
   resetTwoFactorState();
   void syncCurrentUser({ silent: true });
+  void syncSmartCampusProfile({ silent: true });
   navigateTo('/overview');
 }
 
@@ -688,7 +845,10 @@ async function loadProfile() {
   const data = await syncCurrentUser();
   if (!data) return;
   await loadStoredCookies();
-  setStatus(`当前用户\nID：${data.id}\n学号：${data.student_id}\n显示名：${data.display_name || '未设置'}`, 'success');
+  setStatus(
+    `当前用户\nID：${data.id}\n学号：${data.student_id}\n昵称：${data.display_name || '未设置'}\n真实姓名：${data.real_name || '未采集'}`,
+    'success',
+  );
 }
 
 async function loadStoredCookies() {
@@ -761,6 +921,224 @@ async function fetchOverviewRealtime(silent = false) {
   }
 }
 
+function applySmartCampusToDom() {
+  if (appState.currentRoute !== '/collectors') return;
+  const sc = appState.smartCampus;
+  const statusNode = document.querySelector('#smart-campus-status');
+  const listNode = document.querySelector('#smart-campus-list');
+  if (statusNode) {
+    statusNode.className = `result-card ${sc.error ? 'error' : 'muted'}`;
+    statusNode.textContent = sc.error ? sc.error : (sc.loading ? '正在同步智慧校园通知…' : `最近更新时间：${sc.updatedAt || '--'}`);
+  }
+  if (listNode) {
+    if (!sc.messages.length) {
+      listNode.innerHTML = '<p class="panel-desc">暂无通知，先点击“同步通知”。</p>';
+      return;
+    }
+    listNode.innerHTML = sc.messages
+      .map((item) => `
+      <article class="timeline-item">
+        <header><strong>${item.sender || '系统通知'}</strong><time>${item.occurred_at_text || item.fetched_at || '--'}</time></header>
+        <div class="timeline-title">${item.title || '(无标题)'}</div>
+        <p>${item.content_text || item.content_html || ''}</p>
+      </article>
+    `)
+      .join('');
+  }
+}
+
+async function syncSmartCampusProfile({ silent = false } = {}) {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const response = await fetch(`${getApiBase()}/api/v1/collectors/smart-campus/profile/sync`, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await parseJsonSafely(response);
+    if (!response.ok) throw new Error(formatApiError(data.detail, `同步失败（${response.status}）`));
+    if (appState.currentUser) {
+      appState.currentUser.real_name = data.real_name || appState.currentUser.real_name;
+    }
+    if (appState.realtime.user) {
+      appState.realtime.user.real_name = data.real_name || appState.realtime.user.real_name;
+    }
+    updateAccountDisplay();
+    applyRealtimeToOverviewDom();
+    if (!silent) setStatus(`已同步真实姓名：${data.real_name || '未获取到'}`, 'success');
+    return data;
+  } catch (error) {
+    if (!silent) setStatus(`同步真实姓名失败：${error.message}`, 'error');
+    return null;
+  }
+}
+
+function toggleSmartCampusScheduleMode() {
+  const modeField = document.querySelector('#sc-schedule-mode');
+  const visualPanel = document.querySelector('#sc-visual-settings');
+  const cronPanel = document.querySelector('#sc-cron-settings');
+  const mode = modeField?.value || 'visual';
+  if (visualPanel) visualPanel.style.display = mode === 'visual' ? '' : 'none';
+  if (cronPanel) cronPanel.style.display = mode === 'cron' ? '' : 'none';
+}
+
+async function loadSmartCampusSettings(silent = false) {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const response = await fetch(`${getApiBase()}/api/v1/collectors/smart-campus/settings`, {
+      mode: 'cors',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await parseJsonSafely(response);
+    if (!response.ok) throw new Error(formatApiError(data.detail, `读取设置失败（${response.status}）`));
+    appState.smartCampus.setting = {
+      ...appState.smartCampus.setting,
+      ...data,
+    };
+    if (appState.currentRoute === '/collectors') {
+      const setting = appState.smartCampus.setting;
+      const enabledSwitch = document.querySelector('#sc-enabled-switch');
+      const modeField = document.querySelector('#sc-schedule-mode');
+      const cronField = document.querySelector('#sc-cron-expr');
+      const visualModeField = document.querySelector('#sc-visual-mode');
+      const intervalField = document.querySelector('#sc-interval-minutes');
+      const dailyTimeField = document.querySelector('#sc-daily-time');
+      if (enabledSwitch) enabledSwitch.checked = !!setting.enabled;
+      if (modeField) modeField.value = setting.schedule_mode || 'visual';
+      if (cronField) cronField.value = setting.cron_expr || '*/30 * * * *';
+      if (visualModeField) visualModeField.value = setting.visual_mode || 'every_n_minutes';
+      if (intervalField) intervalField.value = String(setting.interval_minutes || 30);
+      if (dailyTimeField) dailyTimeField.value = setting.daily_time || '08:00';
+      toggleSmartCampusScheduleMode();
+    }
+    if (!silent) setStatus('采集器设置已加载。', 'success');
+    return data;
+  } catch (error) {
+    if (!silent) setStatus(`读取采集器设置失败：${error.message}`, 'error');
+    return null;
+  }
+}
+
+async function saveSmartCampusSettings() {
+  const token = getToken();
+  if (!token) return setStatus('请先登录后再保存采集器设置。', 'error');
+  const mode = document.querySelector('#sc-schedule-mode')?.value || 'visual';
+  const payload = {
+    enabled: !!document.querySelector('#sc-enabled-switch')?.checked,
+    schedule_mode: mode,
+    cron_expr: document.querySelector('#sc-cron-expr')?.value?.trim() || '*/30 * * * *',
+    visual_mode: document.querySelector('#sc-visual-mode')?.value || 'every_n_minutes',
+    interval_minutes: Number.parseInt(document.querySelector('#sc-interval-minutes')?.value || '30', 10) || 30,
+    daily_time: document.querySelector('#sc-daily-time')?.value || '08:00',
+  };
+  try {
+    const response = await fetch(`${getApiBase()}/api/v1/collectors/smart-campus/settings`, {
+      method: 'PUT',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await parseJsonSafely(response);
+    if (!response.ok) throw new Error(formatApiError(data.detail, `保存失败（${response.status}）`));
+    appState.smartCampus.setting = { ...appState.smartCampus.setting, ...data };
+    setStatus('采集器设置已保存。', 'success');
+  } catch (error) {
+    setStatus(`保存采集器设置失败：${error.message}`, 'error');
+  }
+}
+
+function applySmartCampusQueryFromDom() {
+  appState.smartCampus.query = {
+    q: document.querySelector('#sc-search-q')?.value?.trim() || '',
+    sender: document.querySelector('#sc-search-sender')?.value?.trim() || '',
+    read_state: document.querySelector('#sc-read-state')?.value || 'all',
+    sort_by: document.querySelector('#sc-sort-by')?.value || 'fetched_at',
+    sort_dir: document.querySelector('#sc-sort-dir')?.value || 'desc',
+  };
+}
+
+async function applySmartCampusQuery() {
+  applySmartCampusQueryFromDom();
+  await loadSmartCampusMessages();
+}
+
+function resetSmartCampusQuery() {
+  appState.smartCampus.query = {
+    q: '',
+    sender: '',
+    read_state: 'all',
+    sort_by: 'fetched_at',
+    sort_dir: 'desc',
+  };
+  routeView.innerHTML = renderRoute('/collectors');
+  bindRouteEvents('/collectors');
+}
+
+async function loadSmartCampusMessages(silent = false) {
+  const token = getToken();
+  if (!token) return [];
+  appState.smartCampus.loading = true;
+  appState.smartCampus.error = '';
+  applySmartCampusToDom();
+  try {
+    const query = appState.smartCampus.query || {};
+    const qs = new URLSearchParams({
+      q: query.q || '',
+      sender: query.sender || '',
+      read_state: query.read_state || 'all',
+      sort_by: query.sort_by || 'fetched_at',
+      sort_dir: query.sort_dir || 'desc',
+    });
+    const response = await fetch(`${getApiBase()}/api/v1/collectors/smart-campus/messages?${qs.toString()}`, {
+      mode: 'cors',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await parseJsonSafely(response);
+    if (!response.ok) throw new Error(formatApiError(data.detail, `读取失败（${response.status}）`));
+    appState.smartCampus.messages = Array.isArray(data) ? data : [];
+    appState.smartCampus.updatedAt = new Date().toLocaleTimeString();
+    if (!silent) setStatus(`已加载 ${appState.smartCampus.messages.length} 条智慧校园通知。`, 'success');
+  } catch (error) {
+    appState.smartCampus.error = `读取智慧校园通知失败：${error.message}`;
+    if (!silent) setStatus(appState.smartCampus.error, 'error');
+  } finally {
+    appState.smartCampus.loading = false;
+    applySmartCampusToDom();
+  }
+  return appState.smartCampus.messages;
+}
+
+async function syncSmartCampusMessages() {
+  const token = getToken();
+  if (!token) return setStatus('请先登录后再同步采集器。', 'error');
+  appState.smartCampus.loading = true;
+  appState.smartCampus.error = '';
+  applySmartCampusToDom();
+  try {
+    const response = await fetch(`${getApiBase()}/api/v1/collectors/smart-campus/messages/sync`, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await parseJsonSafely(response);
+    if (!response.ok) throw new Error(formatApiError(data.detail, `同步失败（${response.status}）`));
+    appState.smartCampus.messages = Array.isArray(data.messages) ? data.messages : [];
+    appState.smartCampus.updatedAt = new Date().toLocaleTimeString();
+    setStatus(`智慧校园通知同步完成：抓取 ${data.fetched_count}，新增 ${data.saved_count}，标记已读 ${data.marked_read_count || 0}。`, 'success');
+  } catch (error) {
+    appState.smartCampus.error = `同步智慧校园通知失败：${error.message}`;
+    setStatus(appState.smartCampus.error, 'error');
+  } finally {
+    appState.smartCampus.loading = false;
+    applySmartCampusToDom();
+  }
+}
+
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -827,7 +1205,8 @@ async function restoreSavedSession() {
   if (!getToken()) return;
   const user = await syncCurrentUser({ silent: true });
   if (user) await loadStoredCookies();
-  if (user) setStatus(`已恢复登录态：${user.display_name || user.student_id}`, 'success');
+  if (user) await syncSmartCampusProfile({ silent: true });
+  if (user) setStatus(`已恢复登录态：${resolveNickname(user)}`, 'success');
 }
 
 function toggleAvatarMenu(forceOpen) {
@@ -876,6 +1255,10 @@ menuProfileButton?.addEventListener('click', () => {
 });
 menuLogoutButton?.addEventListener('click', () => {
   toggleAvatarMenu(false);
+  handleLogout();
+});
+drawerLogoutButton?.addEventListener('click', () => {
+  if (window.matchMedia('(max-width: 1024px)').matches) drawer.open = false;
   handleLogout();
 });
 document.addEventListener('click', (event) => {
