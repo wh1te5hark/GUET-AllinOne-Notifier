@@ -24,6 +24,8 @@ dist/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+tests/
+*.log
 
 # Environment
 .env
@@ -39,6 +41,9 @@ Thumbs.db
 api/
 plan/
 mock/
+doc/
+
 
 #Cursor
 .cursor/
+.cursorrules
