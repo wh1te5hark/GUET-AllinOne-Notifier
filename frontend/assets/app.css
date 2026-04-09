@@ -113,11 +113,14 @@ mdui-button[variant="text"] {
   position: relative;
   margin-left: auto;
   margin-right: 0.45rem;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
 }
 
 .avatar-trigger {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   border-radius: 999px;
   border: 1px solid var(--guet-line);
   background: var(--guet-surface-soft);
@@ -144,7 +147,7 @@ mdui-button[variant="text"] {
 .avatar-panel {
   position: absolute;
   right: 0;
-  top: 42px;
+  top: 46px;
   min-width: 220px;
   border-radius: 12px;
   border: 1px solid var(--guet-line);
@@ -471,6 +474,20 @@ html[data-theme="dark"] .wechat-qr-overlay {
 .login-card .panel-desc {
   margin-top: 0;
   margin-bottom: 0.9rem;
+}
+
+.login-page {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: calc(100vh - 160px);
+  padding-top: 0.4rem;
+}
+
+.login-card {
+  width: min(100%, 540px);
+  margin: 0 auto;
 }
 
 .panel-title {

@@ -17,6 +17,7 @@ const drawerDisplayName = document.querySelector('#drawer-display-name');
 const drawerAvatarImg = document.querySelector('#drawer-avatar-img');
 const drawerAvatarFallback = document.querySelector('#drawer-avatar-fallback');
 const drawerLogoutButton = document.querySelector('#drawer-logout-btn');
+const drawerUserActions = document.querySelector('.drawer-user-actions');
 const topAvatarTrigger = document.querySelector('#top-avatar-trigger');
 const topAvatarPanel = document.querySelector('#top-avatar-panel');
 const topAvatarImg = document.querySelector('#top-avatar-img');
@@ -118,6 +119,7 @@ function updateAccountDisplay() {
   if (topAccount) topAccount.textContent = label;
   if (drawerDisplayName) drawerDisplayName.textContent = label;
   if (drawerAccount) drawerAccount.textContent = `当前账号：${student}`;
+  if (drawerUserActions) drawerUserActions.style.display = user ? '' : 'none';
   if (topAvatarName) topAvatarName.textContent = user ? `${label} (${user.student_id || ''})` : '未登录';
   if (topAvatarImg && topAvatarFallback) {
     if (avatar) {
@@ -275,7 +277,7 @@ function renderHome() {
 function renderLogin() {
   const apiBase = localStorage.getItem(storageKeys.apiBase) || 'http://127.0.0.1:8000';
   return `
-    <section>
+    <section class="login-page">
       <mdui-card class="panel-card login-card">
         <div class="panel-title">CAS 登录</div>
         <p class="panel-desc">登录后会保存访问令牌与本次 CAS Cookies。</p>
