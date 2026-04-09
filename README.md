@@ -6,7 +6,7 @@
 
 ```text
 backend/   FastAPI 后端服务（Poetry 管理）
-frontend/  基于 MDUI CDN 的静态前端
+frontend/  基于 MDUI 的静态前端（依赖本地资源）
 ```
 
 - 前后端分离。
@@ -20,35 +20,32 @@ frontend/  基于 MDUI CDN 的静态前端
 ```bash
 cd backend
 poetry install
+# 生产环境
 poetry run guet-notifier
+# 开发环境
+poetry run dev
 ```
 
-默认启动后：
+默认启动在本机 8080 端口, 可在 env 中进行修改  
 
 - 健康检查：<http://127.0.0.1:8000/health>
 - OpenAPI 文档：<http://127.0.0.1:8000/docs>
 
-### 已实现接口
-
-- `POST /api/v1/auth/cas/login`
-- `GET /api/v1/me`
-
 ### 常用命令
 
 ```bash
-cd backend
 poetry run ruff check src tests
 poetry run pytest
 ```
 
 ## Frontend 使用
 
-`frontend/` 是纯静态文件，可直接双击 `index.html` 打开，或部署到任意静态托管环境。
+`frontend/` 是纯静态文件，部署到任意静态托管环境即可使用。后端已增加跨域头
 
 前端特性：
 
-- 使用 **MDUI 2**，资源直接从 CDN 引入。
-- 不使用 npm / Vite / Webpack。
+- 使用 **MDUI 2**，不依赖外部 CDN 以加快加载速度(嗯，取决于你托管在哪)
+- 不使用 npm / Vite / Webpack 等黑洞级技术栈，不需要在电脑里留下一坨 node_modules
 - 默认后端地址为 `http://127.0.0.1:8000`，可在页面表单中修改。
 - 登录成功后，access token 存储在浏览器本地存储中，供演示阶段调用 `/api/v1/me`。
 
@@ -59,6 +56,6 @@ poetry run pytest
 - 默认 SQLite 会自动创建到 `backend/.data/app.db`。
 - 生产部署时建议显式设置 `GUET_DATABASE_URL` 并切换到 MySQL。
 
-## 规划文档
+~~## 规划文档~~
 
-详见 [plan/规划与实现.md](plan/规划与实现.md) 与 [plan/origin.md](plan/origin.md)。
+~~内部用：详见 [plan/规划与实现.md](plan/规划与实现.md) 与 [plan/origin.md](plan/origin.md)。~~
