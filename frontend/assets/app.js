@@ -673,6 +673,7 @@ async function syncCurrentUser({ silent = false } = {}) {
   if (!token) {
     appState.currentUser = null;
     updateAccountDisplay();
+    if (!silent) setStatus('请先登录后再读取当前用户。', 'error');
     return null;
   }
   try {
@@ -843,6 +844,10 @@ async function pollWechatStatus() {
 }
 
 async function loadProfile() {
+  if (!getToken()) {
+    setStatus('请先登录后再读取当前用户。', 'error');
+    return;
+  }
   setStatus('正在读取当前用户信息…');
   const data = await syncCurrentUser();
   if (!data) return;
