@@ -1,3 +1,5 @@
+@import url('./app.login.css');
+
 :root {
   --guet-page-bg: #f3f7fc;
   --guet-surface: #ffffff;
@@ -322,70 +324,6 @@ mdui-select::after {
   flex-wrap: wrap;
 }
 
-.login-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem;
-}
-
-.login-actions mdui-button {
-  width: 100%;
-}
-
-.login-preferences {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-
-.login-pref-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: var(--guet-muted);
-  font-size: 0.85rem;
-}
-
-.login-pref-item input[type="checkbox"] {
-  margin: 0;
-  accent-color: var(--guet-primary);
-}
-
-.recent-account-switches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.recent-account-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.recent-account-tool-btn {
-  border: 1px solid var(--guet-line);
-  background: var(--guet-surface-soft);
-  color: var(--guet-text);
-  border-radius: 10px;
-  padding: 0.35rem 0.65rem;
-  cursor: pointer;
-  font-size: 0.82rem;
-}
-
-.recent-account-tool-btn.danger {
-  color: var(--guet-danger);
-}
-
-.recent-account-btn {
-  border: 1px solid var(--guet-line);
-  background: var(--guet-surface-soft);
-  color: var(--guet-text);
-  border-radius: 999px;
-  padding: 0.28rem 0.62rem;
-  cursor: pointer;
-  font-size: 0.82rem;
-}
 
 .two-factor-dialog-content {
   display: flex;
@@ -550,25 +488,6 @@ html[data-theme="dark"] .wechat-qr-overlay {
 
 .panel-card {
   padding: 1.2rem;
-}
-
-.login-card .panel-desc {
-  margin-top: 0;
-  margin-bottom: 0.9rem;
-}
-
-.login-page {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  min-height: calc(100vh - 160px);
-  padding-top: 0.4rem;
-}
-
-.login-card {
-  width: min(100%, 540px);
-  margin: 0 auto;
 }
 
 .panel-title {
@@ -789,32 +708,6 @@ html[data-theme="dark"] mdui-text-field:focus-within::part(outline) {
   box-shadow: none;
 }
 
-html[data-theme="dark"] .login-actions mdui-button[type="submit"] {
-  --container-color: var(--guet-primary);
-  --label-text-color: #ffffff;
-}
-
-html[data-theme="dark"] .login-actions mdui-button#load-profile-btn {
-  --label-text-color: #bcd4ff;
-}
-
-@media (max-width: 900px) {
-  .login-actions {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.6rem;
-  }
-
-  .login-preferences {
-    grid-template-columns: 1fr;
-    gap: 0.45rem;
-  }
-
-  .login-actions mdui-button {
-    width: 100%;
-  }
-}
-
 @media (max-width: 1024px) {
   .page {
     max-width: 820px;
@@ -863,12 +756,6 @@ html[data-theme="dark"] .login-actions mdui-button#load-profile-btn {
   .simple-row,
   .result-card {
     border-radius: 12px;
-  }
-
-  .login-actions {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.6rem;
   }
 
   .login-actions mdui-button,
