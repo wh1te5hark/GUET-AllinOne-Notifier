@@ -43,6 +43,9 @@ const storageKeys = {
   token: 'guet-notifier-access-token',
   apiBase: 'guet-notifier-api-base',
   themeMode: 'guet-notifier-theme-mode',
+  recentAccounts: 'guet-notifier-recent-accounts',
+  lastAccount: 'guet-notifier-last-account',
+  cryptoKey: 'guet-notifier-crypto-key',
 };
 const themeColors = { light: '#1662c4', dark: '#6e9bff' };
 
@@ -80,11 +83,16 @@ const appState = {
       sort_dir: 'desc',
     },
   },
+  login: {
+    recentAccounts: [],
+    autoLoginTried: false,
+  },
 };
 
 let pendingChallenge = null;
 let pendingMethods = [];
 let wechatPollTimer = null;
+let pendingLoginContext = null;
 
 function resolveNickname(user) {
   if (!user) return '未登录';
@@ -164,6 +172,187 @@ function saveApiBase(apiBase) {
 function formatCookies(cookies) {
   if (!cookies || cookies.length === 0) return '';
   return cookies.map((c) => `  ${c.name}=${c.value} (${c.domain})`).join('\n');
+}
+
+function safeJsonParse(raw, fallback) {
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function toBase64(bytes) {
+  let binary = '';
+  bytes.forEach((b) => {
+    binary += String.fromCharCode(b);
+  });
+  return btoa(binary);
+}
+
+function fromBase64(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+async function getLocalCryptoKey() {
+  let keyBase64 = localStorage.getItem(storageKeys.cryptoKey);
+  if (!keyBase64) {
+    const raw = new Uint8Array(32);
+    crypto.getRandomValues(raw);
+    keyBase64 = toBase64(raw);
+    localStorage.setItem(storageKeys.cryptoKey, keyBase64);
+  }
+  const rawBytes = fromBase64(keyBase64);
+  return crypto.subtle.importKey('raw', rawBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+async function encryptSecret(plainText) {
+  if (!plainText) return '';
+  const key = await getLocalCryptoKey();
+  const iv = new Uint8Array(12);
+  crypto.getRandomValues(iv);
+  const encoded = new TextEncoder().encode(plainText);
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+  return `${toBase64(iv)}.${toBase64(new Uint8Array(encrypted))}`;
+}
+
+async function decryptSecret(payload) {
+  if (!payload) return '';
+  const [ivBase64, dataBase64] = String(payload).split('.');
+  if (!ivBase64 || !dataBase64) return '';
+  try {
+    const key = await getLocalCryptoKey();
+    const iv = fromBase64(ivBase64);
+    const encrypted = fromBase64(dataBase64);
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted);
+    return new TextDecoder().decode(plain);
+  } catch {
+    return '';
+  }
+}
+
+function loadRecentAccounts() {
+  const list = safeJsonParse(localStorage.getItem(storageKeys.recentAccounts), []);
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((item) => item && typeof item.student_id === 'string')
+    .map((item) => ({
+      student_id: String(item.student_id || '').trim(),
+      api_base: String(item.api_base || 'http://127.0.0.1:8000').trim() || 'http://127.0.0.1:8000',
+      display_name: String(item.display_name || '').trim(),
+      password_cipher: String(item.password_cipher || ''),
+      remember_password: !!item.remember_password,
+      auto_login: !!item.auto_login,
+      last_login_at: Number(item.last_login_at || Date.now()),
+    }))
+    .filter((item) => item.student_id);
+}
+
+function saveRecentAccounts(accounts) {
+  const trimmed = (accounts || []).slice(0, 8);
+  appState.login.recentAccounts = trimmed;
+  localStorage.setItem(storageKeys.recentAccounts, JSON.stringify(trimmed));
+}
+
+function getPreferredRecentAccountId() {
+  const latest = localStorage.getItem(storageKeys.lastAccount) || '';
+  if (latest && appState.login.recentAccounts.some((x) => x.student_id === latest)) return latest;
+  return appState.login.recentAccounts[0]?.student_id || '';
+}
+
+function getRecentAccountById(studentId) {
+  return appState.login.recentAccounts.find((item) => item.student_id === studentId);
+}
+
+async function fillLoginFormByAccount(studentId) {
+  const account = getRecentAccountById(studentId);
+  if (!account) return;
+  const studentField = document.querySelector('#cas-login-form [name="student_id"]');
+  const passwordField = document.querySelector('#cas-login-form [name="password"]');
+  const apiBaseField = document.querySelector('#cas-login-form [name="api_base"]');
+  const rememberField = document.querySelector('#remember-password');
+  const autoField = document.querySelector('#auto-login');
+  if (studentField) studentField.value = account.student_id;
+  if (apiBaseField) apiBaseField.value = account.api_base || 'http://127.0.0.1:8000';
+  if (rememberField) rememberField.checked = !!account.remember_password;
+  if (autoField) autoField.checked = !!account.auto_login;
+  if (passwordField) {
+    passwordField.value = account.remember_password ? await decryptSecret(account.password_cipher) : '';
+  }
+  localStorage.setItem(storageKeys.lastAccount, account.student_id);
+}
+
+async function persistLoginContext(context, currentUser = null) {
+  if (!context?.student_id) return;
+  const base = appState.login.recentAccounts.filter((x) => x.student_id !== context.student_id);
+  const record = {
+    student_id: context.student_id,
+    api_base: context.api_base || 'http://127.0.0.1:8000',
+    display_name: currentUser?.display_name || currentUser?.real_name || '',
+    remember_password: !!context.remember_password,
+    auto_login: !!context.auto_login,
+    password_cipher: '',
+    last_login_at: Date.now(),
+  };
+  if (record.remember_password && context.password) {
+    record.password_cipher = await encryptSecret(context.password);
+  }
+  const normalized = [record, ...base].slice(0, 8).map((item, idx) => ({
+    ...item,
+    auto_login: idx === 0 ? record.auto_login : (item.auto_login && !record.auto_login),
+  }));
+  saveRecentAccounts(normalized);
+  localStorage.setItem(storageKeys.lastAccount, context.student_id);
+}
+
+function renderRecentAccountOptions() {
+  if (!appState.login.recentAccounts.length) {
+    return '<mdui-menu-item value="">暂无历史账号</mdui-menu-item>';
+  }
+  return appState.login.recentAccounts
+    .map((item) => `<mdui-menu-item value="${item.student_id}">${item.student_id}</mdui-menu-item>`)
+    .join('');
+}
+
+function renderRecentAccountQuickSwitch() {
+  if (!appState.login.recentAccounts.length) {
+    return '<span class="panel-desc">暂无历史账号，登录后将自动记录。</span>';
+  }
+  return appState.login.recentAccounts
+    .slice(0, 4)
+    .map(
+      (item) => `<button type="button" class="recent-account-btn" data-student-id="${item.student_id}">
+        ${item.display_name ? `${item.display_name}（${item.student_id}）` : item.student_id}
+      </button>`,
+    )
+    .join('');
+}
+
+function removeRecentAccountById(studentId) {
+  if (!studentId) return false;
+  const remained = appState.login.recentAccounts.filter((item) => item.student_id !== studentId);
+  if (remained.length === appState.login.recentAccounts.length) return false;
+  saveRecentAccounts(remained);
+  if (localStorage.getItem(storageKeys.lastAccount) === studentId) {
+    if (remained[0]?.student_id) localStorage.setItem(storageKeys.lastAccount, remained[0].student_id);
+    else localStorage.removeItem(storageKeys.lastAccount);
+  }
+  return true;
+}
+
+function clearAllRecentAccounts() {
+  saveRecentAccounts([]);
+  localStorage.removeItem(storageKeys.lastAccount);
+}
+
+function rerenderLoginPage() {
+  if (appState.currentRoute !== '/login') return;
+  routeView.innerHTML = renderRoute('/login');
+  bindRouteEvents('/login');
 }
 
 function applyStatusToPage() {
@@ -276,17 +465,38 @@ function renderHome() {
 
 function renderLogin() {
   const apiBase = localStorage.getItem(storageKeys.apiBase) || 'http://127.0.0.1:8000';
+  const selectedRecent = getPreferredRecentAccountId();
   return `
     <section class="login-page">
       <mdui-card class="panel-card login-card">
-        <div class="panel-title">CAS 登录</div>
-        <p class="panel-desc">登录后会保存访问令牌与本次 CAS Cookies。</p>
+        <div class="panel-title">登录</div>
+        <p class="panel-desc">请使用桂电统一身份认证账号(智慧校园账号)登录。</p>
         <form id="cas-login-form" class="login-form">
           <mdui-text-field name="student_id" label="学号 / 工号" variant="outlined" required></mdui-text-field>
-          <mdui-text-field name="password" type="password" toggle-password label="CAS 密码" variant="outlined" required></mdui-text-field>
-          <mdui-text-field name="api_base" label="后端 API 地址" variant="outlined" value="${apiBase}" helper="默认指向本地 backend 服务"></mdui-text-field>
+          <mdui-text-field name="password" type="password" toggle-password label="密码" variant="outlined" required></mdui-text-field>
+          <mdui-text-field name="api_base" label="后端 API 地址" variant="outlined" value="${apiBase}" helper="默认指向本地后端服务"></mdui-text-field>
+          <mdui-select id="recent-account-select" label="最近登录账号" variant="outlined" value="${selectedRecent}">
+            ${renderRecentAccountOptions()}
+          </mdui-select>
+          <div class="recent-account-tools">
+            <button type="button" class="recent-account-tool-btn" id="delete-recent-account-btn">删除当前历史账号</button>
+            <button type="button" class="recent-account-tool-btn danger" id="clear-recent-accounts-btn">清空全部历史账号</button>
+          </div>
+          <div class="recent-account-switches" id="recent-account-switches">
+            ${renderRecentAccountQuickSwitch()}
+          </div>
+          <div class="login-preferences">
+            <label class="login-pref-item">
+              <input id="remember-password" type="checkbox" />
+              <span>保存密码</span>
+            </label>
+            <label class="login-pref-item">
+              <input id="auto-login" type="checkbox" />
+              <span>自动登录</span>
+            </label>
+          </div>
           <div class="login-actions">
-            <mdui-button type="submit" variant="filled">登录并保存 Cookie</mdui-button>
+            <mdui-button type="submit" variant="filled">登录</mdui-button>
             <mdui-button type="button" variant="text" id="load-profile-btn">读取当前用户</mdui-button>
           </div>
         </form>
@@ -344,7 +554,7 @@ function renderOverview() {
       </mdui-card>
       <mdui-card class="panel-card" id="profile-card" style="grid-column:1 / -1">
         <div class="panel-title">昵称与头像（隐私）</div>
-        <p class="panel-desc">可设置对外显示昵称，头像将以 base64 文本存储在数据库。</p>
+        <p class="panel-desc">可设置对外显示昵称</p>
         <div class="profile-editor">
           <div class="profile-avatar-wrap">
             <img id="profile-avatar-preview" class="profile-avatar" src="${avatar || ''}" alt="头像预览" style="${avatar ? '' : 'display:none;'}" />
@@ -387,7 +597,7 @@ function renderCollectors() {
     <section class="lower-grid">
       <mdui-card class="panel-card" style="grid-column:1 / -1">
         <div class="panel-title">智慧校园通知采集器</div>
-        <p class="panel-desc">数据源：pcportal 消息中心 receiveBox。同步后会调用详情接口标记已读以提高增量效率。</p>
+        <p class="panel-desc">数据源：pcportal 消息中心 receiveBox。同步后会标记已读</p>
         <div class="panel-title" style="font-size:1rem;margin-top:0.8rem;">采集时间设置</div>
         <div class="overview-actions" style="margin-top:0.6rem;flex-wrap:wrap;">
           <mdui-select id="sc-schedule-mode" value="${s.schedule_mode || 'visual'}" label="调度模式" variant="outlined" style="min-width:180px;">
@@ -506,6 +716,7 @@ function bindRouteEvents(route) {
   }
   if (route === '/login') {
     document.querySelector('#cas-login-form')?.addEventListener('submit', handleLogin);
+    void initLoginEnhancements();
   }
   if (route === '/overview') {
     document.querySelector('#refresh-overview-btn')?.addEventListener('click', () => fetchOverviewRealtime());
@@ -700,23 +911,37 @@ function handleLoginSuccess(data) {
   setStatus('登录成功，正在同步当前账号信息…', 'success');
   closeTwoFactorDialog();
   resetTwoFactorState();
-  void syncCurrentUser({ silent: true });
+  void syncCurrentUser({ silent: true }).then((user) => {
+    void persistLoginContext(pendingLoginContext, user);
+  });
   void syncSmartCampusProfile({ silent: true });
   navigateTo('/overview');
 }
 
-async function handleLogin(event) {
-  event.preventDefault();
-  const formData = new FormData(event.currentTarget);
-  const apiBase = String(formData.get('api_base') || '').trim().replace(/\/$/, '');
+async function submitLoginWithPayload(payload, options = {}) {
+  const apiBase = String(payload.api_base || '').trim().replace(/\/$/, '');
+  if (!payload.student_id || !payload.password || !apiBase) {
+    setStatus('请完整填写学号、密码和后端地址。', 'error');
+    return;
+  }
+  const normalized = {
+    student_id: String(payload.student_id || '').trim(),
+    password: String(payload.password || ''),
+    api_base: apiBase,
+    remember_password: !!payload.remember_password,
+    auto_login: !!payload.auto_login,
+  };
+  if (normalized.auto_login) normalized.remember_password = true;
+  pendingLoginContext = normalized;
+  localStorage.setItem(storageKeys.lastAccount, normalized.student_id);
   saveApiBase(apiBase);
-  setStatus('正在请求 backend 登录接口，请稍候…');
+  if (!options.silent) setStatus('正在请求 backend 登录接口，请稍候…');
   try {
     const response = await fetch(`${apiBase}/api/v1/auth/cas/login`, {
       method: 'POST',
       mode: 'cors',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ student_id: formData.get('student_id'), password: formData.get('password') }),
+      body: JSON.stringify({ student_id: normalized.student_id, password: normalized.password }),
     });
     const data = await parseJsonSafely(response);
     if (!response.ok) throw new Error(formatApiError(data.detail, `登录失败（${response.status}）`));
@@ -728,8 +953,93 @@ async function handleLogin(event) {
     }
     handleLoginSuccess(data);
   } catch (error) {
-    setStatus(`登录失败：${error.message}`, 'error');
+    setStatus(options.fromAuto ? `自动登录失败：${error.message}` : `登录失败：${error.message}`, 'error');
   }
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  await submitLoginWithPayload({
+    student_id: formData.get('student_id'),
+    password: formData.get('password'),
+    api_base: formData.get('api_base'),
+    remember_password: !!document.querySelector('#remember-password')?.checked,
+    auto_login: !!document.querySelector('#auto-login')?.checked,
+  });
+}
+
+async function tryAutoLoginOnLoginPage() {
+  if (appState.login.autoLoginTried || getToken()) return;
+  const target = appState.login.recentAccounts.find((item) => item.auto_login && item.password_cipher);
+  if (!target) return;
+  appState.login.autoLoginTried = true;
+  const password = await decryptSecret(target.password_cipher);
+  if (!password) return;
+  await fillLoginFormByAccount(target.student_id);
+  await submitLoginWithPayload(
+    {
+      student_id: target.student_id,
+      password,
+      api_base: target.api_base || 'http://127.0.0.1:8000',
+      remember_password: true,
+      auto_login: true,
+    },
+    { silent: true, fromAuto: true },
+  );
+}
+
+async function initLoginEnhancements() {
+  const select = document.querySelector('#recent-account-select');
+  const rememberField = document.querySelector('#remember-password');
+  const autoField = document.querySelector('#auto-login');
+  const deleteCurrentButton = document.querySelector('#delete-recent-account-btn');
+  const clearAllButton = document.querySelector('#clear-recent-accounts-btn');
+  const preferredId = getPreferredRecentAccountId();
+  if (select) {
+    select.addEventListener('change', () => {
+      const sid = select.value || '';
+      if (sid) void fillLoginFormByAccount(sid);
+    });
+  }
+  document.querySelectorAll('.recent-account-btn').forEach((button) => {
+    button.addEventListener('click', () => {
+      const sid = button.getAttribute('data-student-id');
+      if (!sid) return;
+      if (select) select.value = sid;
+      void fillLoginFormByAccount(sid);
+    });
+  });
+  rememberField?.addEventListener('change', () => {
+    if (!rememberField.checked && autoField) autoField.checked = false;
+  });
+  autoField?.addEventListener('change', () => {
+    if (autoField.checked && rememberField) rememberField.checked = true;
+  });
+  deleteCurrentButton?.addEventListener('click', () => {
+    const sid = (select?.value || document.querySelector('#cas-login-form [name="student_id"]')?.value || '').trim();
+    if (!sid) {
+      setStatus('请选择要删除的历史账号。', 'error');
+      return;
+    }
+    if (!removeRecentAccountById(sid)) {
+      setStatus(`历史账号 ${sid} 不存在。`, 'error');
+      return;
+    }
+    setStatus(`已删除历史账号：${sid}`, 'success');
+    rerenderLoginPage();
+  });
+  clearAllButton?.addEventListener('click', () => {
+    if (!appState.login.recentAccounts.length) {
+      setStatus('当前没有可清空的历史账号。', 'muted');
+      return;
+    }
+    clearAllRecentAccounts();
+    setStatus('已清空全部历史账号。', 'success');
+    rerenderLoginPage();
+  });
+  if (preferredId) await fillLoginFormByAccount(preferredId);
+  await tryAutoLoginOnLoginPage();
 }
 
 async function verifyTwoFactorCode() {
@@ -1284,6 +1594,7 @@ close2faDialogButton?.addEventListener('click', closeTwoFactorDialog);
 
 initTheme();
 resetTwoFactorState();
+appState.login.recentAccounts = loadRecentAccounts();
 updateAccountDisplay();
 void restoreSavedSession();
 if (!window.location.hash) navigateTo('/home');

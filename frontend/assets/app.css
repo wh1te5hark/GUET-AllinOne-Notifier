@@ -102,6 +102,22 @@ mdui-button[variant="text"] {
   --label-text-color: var(--guet-primary);
 }
 
+mdui-select {
+  position: relative;
+}
+
+mdui-select::after {
+  content: '▾';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--guet-muted);
+  font-size: 0.9rem;
+  pointer-events: none;
+  z-index: 2;
+}
+
 .topbar-actions {
   display: flex;
   align-items: center;
@@ -314,6 +330,61 @@ mdui-button[variant="text"] {
 
 .login-actions mdui-button {
   width: 100%;
+}
+
+.login-preferences {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.login-pref-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--guet-muted);
+  font-size: 0.85rem;
+}
+
+.login-pref-item input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--guet-primary);
+}
+
+.recent-account-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.recent-account-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.recent-account-tool-btn {
+  border: 1px solid var(--guet-line);
+  background: var(--guet-surface-soft);
+  color: var(--guet-text);
+  border-radius: 10px;
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.recent-account-tool-btn.danger {
+  color: var(--guet-danger);
+}
+
+.recent-account-btn {
+  border: 1px solid var(--guet-line);
+  background: var(--guet-surface-soft);
+  color: var(--guet-text);
+  border-radius: 999px;
+  padding: 0.28rem 0.62rem;
+  cursor: pointer;
+  font-size: 0.82rem;
 }
 
 .two-factor-dialog-content {
@@ -732,6 +803,11 @@ html[data-theme="dark"] .login-actions mdui-button#load-profile-btn {
     display: grid;
     grid-template-columns: 1fr;
     gap: 0.6rem;
+  }
+
+  .login-preferences {
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
   }
 
   .login-actions mdui-button {
