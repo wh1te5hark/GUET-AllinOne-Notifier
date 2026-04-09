@@ -1,3 +1,10 @@
+import { createLoginAccountManager } from './modules/login-account-manager.js';
+import { createRenderers } from './modules/renderers.js';
+import { createSmartCampusManager } from './modules/smart-campus-manager.js';
+import { createAuthFlow } from './modules/auth-flow.js';
+import { createProfileSessionManager } from './modules/profile-session-manager.js';
+import { createUiManager } from './modules/ui-manager.js';
+
 const timelineData = [
   { source: '教务处', time: '刚刚', title: '考试安排已更新', detail: '离散数学期末考试从周三晚改到周四下午。' },
   { source: '畅课', time: '16 分钟前', title: '新作业发布', detail: '《软件工程》新增实验报告。' },
@@ -339,10 +346,100 @@ const appState = {
   },
 };
 
-let pendingChallenge = null;
-let pendingMethods = [];
-let wechatPollTimer = null;
-let pendingLoginContext = null;
+const loginAccountManager = createLoginAccountManager({
+  appState,
+  storageKeys,
+  getCurrentRoute: () => appState.currentRoute,
+  routeView,
+  renderRoute: (route) => renderRoute(route),
+  bindRouteEvents: (route) => bindRouteEvents(route),
+});
+
+const renderers = createRenderers({
+  appState,
+  timelineData,
+  storageKeys,
+  formatCookies: (...args) => formatCookies(...args),
+  loginAccountManager,
+});
+
+const smartCampusManager = createSmartCampusManager({
+  appState,
+  getToken: () => getToken(),
+  getApiBase: () => getApiBase(),
+  parseJsonSafely: (...args) => parseJsonSafely(...args),
+  formatApiError: (...args) => formatApiError(...args),
+  setStatus: (...args) => setStatus(...args),
+  updateAccountDisplay: () => updateAccountDisplay(),
+  applyRealtimeToOverviewDom: () => applyRealtimeToOverviewDom(),
+  applySmartCampusToDom: () => applySmartCampusToDom(),
+  rerenderCollectorsPage: () => {
+    routeView.innerHTML = renderRoute('/collectors');
+    bindRouteEvents('/collectors');
+  },
+});
+
+const authFlow = createAuthFlow({
+  appState,
+  storageKeys,
+  elements: {
+    twoFactorDialog,
+    twoFactorCodeField,
+    twoFactorMethodField,
+    twoFactorStatusEl,
+    smsPanel,
+    wechatPanel,
+    wechatQrImg,
+    wechatQrOverlay,
+  },
+  setStatus: (...args) => setStatus(...args),
+  getToken: () => getToken(),
+  getApiBase: () => getApiBase(),
+  saveApiBase: (apiBase) => saveApiBase(apiBase),
+  parseJsonSafely: (...args) => parseJsonSafely(...args),
+  formatApiError: (...args) => formatApiError(...args),
+  loginAccountManager,
+  syncCurrentUser: (...args) => syncCurrentUser(...args),
+  syncSmartCampusProfile: (...args) => syncSmartCampusProfile(...args),
+  navigateTo: (route) => navigateTo(route),
+});
+
+const profileSessionManager = createProfileSessionManager({
+  appState,
+  getToken: () => getToken(),
+  getApiBase: () => getApiBase(),
+  parseJsonSafely: (...args) => parseJsonSafely(...args),
+  formatApiError: (...args) => formatApiError(...args),
+  setStatus: (...args) => setStatus(...args),
+  syncCurrentUser: (...args) => syncCurrentUser(...args),
+  syncSmartCampusProfile: (...args) => syncSmartCampusProfile(...args),
+  clearLocalAuth: () => clearLocalAuth(),
+  navigateTo: (route) => navigateTo(route),
+  updateAccountDisplay: () => updateAccountDisplay(),
+  applyRealtimeToOverviewDom: () => applyRealtimeToOverviewDom(),
+  resolveNickname: (user) => resolveNickname(user),
+});
+
+const uiManager = createUiManager({
+  storageKeys,
+  themeColors,
+  elements: {
+    drawer,
+    menuToggle,
+    themeToggle,
+    themeModeAutoButton,
+    themeModeLightButton,
+    themeModeDarkButton,
+    topAvatarTrigger,
+    topAvatarPanel,
+    menuProfileButton,
+    menuLogoutButton,
+    drawerLogoutButton,
+  },
+  navigateTo: (route) => navigateTo(route),
+  clearLocalAuth: () => clearLocalAuth(),
+  setStatus: (...args) => setStatus(...args),
+});
 
 function resolveNickname(user) {
   if (!user) return '未登录';
@@ -424,187 +521,6 @@ function formatCookies(cookies) {
   return cookies.map((c) => `  ${c.name}=${c.value} (${c.domain})`).join('\n');
 }
 
-function safeJsonParse(raw, fallback) {
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
-}
-
-function toBase64(bytes) {
-  let binary = '';
-  bytes.forEach((b) => {
-    binary += String.fromCharCode(b);
-  });
-  return btoa(binary);
-}
-
-function fromBase64(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
-
-async function getLocalCryptoKey() {
-  let keyBase64 = localStorage.getItem(storageKeys.cryptoKey);
-  if (!keyBase64) {
-    const raw = new Uint8Array(32);
-    crypto.getRandomValues(raw);
-    keyBase64 = toBase64(raw);
-    localStorage.setItem(storageKeys.cryptoKey, keyBase64);
-  }
-  const rawBytes = fromBase64(keyBase64);
-  return crypto.subtle.importKey('raw', rawBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-}
-
-async function encryptSecret(plainText) {
-  if (!plainText) return '';
-  const key = await getLocalCryptoKey();
-  const iv = new Uint8Array(12);
-  crypto.getRandomValues(iv);
-  const encoded = new TextEncoder().encode(plainText);
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
-  return `${toBase64(iv)}.${toBase64(new Uint8Array(encrypted))}`;
-}
-
-async function decryptSecret(payload) {
-  if (!payload) return '';
-  const [ivBase64, dataBase64] = String(payload).split('.');
-  if (!ivBase64 || !dataBase64) return '';
-  try {
-    const key = await getLocalCryptoKey();
-    const iv = fromBase64(ivBase64);
-    const encrypted = fromBase64(dataBase64);
-    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted);
-    return new TextDecoder().decode(plain);
-  } catch {
-    return '';
-  }
-}
-
-function loadRecentAccounts() {
-  const list = safeJsonParse(localStorage.getItem(storageKeys.recentAccounts), []);
-  if (!Array.isArray(list)) return [];
-  return list
-    .filter((item) => item && typeof item.student_id === 'string')
-    .map((item) => ({
-      student_id: String(item.student_id || '').trim(),
-      api_base: String(item.api_base || 'http://127.0.0.1:8000').trim() || 'http://127.0.0.1:8000',
-      display_name: String(item.display_name || '').trim(),
-      password_cipher: String(item.password_cipher || ''),
-      remember_password: !!item.remember_password,
-      auto_login: !!item.auto_login,
-      last_login_at: Number(item.last_login_at || Date.now()),
-    }))
-    .filter((item) => item.student_id);
-}
-
-function saveRecentAccounts(accounts) {
-  const trimmed = (accounts || []).slice(0, 8);
-  appState.login.recentAccounts = trimmed;
-  localStorage.setItem(storageKeys.recentAccounts, JSON.stringify(trimmed));
-}
-
-function getPreferredRecentAccountId() {
-  const latest = localStorage.getItem(storageKeys.lastAccount) || '';
-  if (latest && appState.login.recentAccounts.some((x) => x.student_id === latest)) return latest;
-  return appState.login.recentAccounts[0]?.student_id || '';
-}
-
-function getRecentAccountById(studentId) {
-  return appState.login.recentAccounts.find((item) => item.student_id === studentId);
-}
-
-async function fillLoginFormByAccount(studentId) {
-  const account = getRecentAccountById(studentId);
-  if (!account) return;
-  const studentField = document.querySelector('#cas-login-form [name="student_id"]');
-  const passwordField = document.querySelector('#cas-login-form [name="password"]');
-  const apiBaseField = document.querySelector('#cas-login-form [name="api_base"]');
-  const rememberField = document.querySelector('#remember-password');
-  const autoField = document.querySelector('#auto-login');
-  if (studentField) studentField.value = account.student_id;
-  if (apiBaseField) apiBaseField.value = account.api_base || 'http://127.0.0.1:8000';
-  if (rememberField) rememberField.checked = !!account.remember_password;
-  if (autoField) autoField.checked = !!account.auto_login;
-  if (passwordField) {
-    passwordField.value = account.remember_password ? await decryptSecret(account.password_cipher) : '';
-  }
-  localStorage.setItem(storageKeys.lastAccount, account.student_id);
-}
-
-async function persistLoginContext(context, currentUser = null) {
-  if (!context?.student_id) return;
-  const base = appState.login.recentAccounts.filter((x) => x.student_id !== context.student_id);
-  const record = {
-    student_id: context.student_id,
-    api_base: context.api_base || 'http://127.0.0.1:8000',
-    display_name: currentUser?.display_name || currentUser?.real_name || '',
-    remember_password: !!context.remember_password,
-    auto_login: !!context.auto_login,
-    password_cipher: '',
-    last_login_at: Date.now(),
-  };
-  if (record.remember_password && context.password) {
-    record.password_cipher = await encryptSecret(context.password);
-  }
-  const normalized = [record, ...base].slice(0, 8).map((item, idx) => ({
-    ...item,
-    auto_login: idx === 0 ? record.auto_login : (item.auto_login && !record.auto_login),
-  }));
-  saveRecentAccounts(normalized);
-  localStorage.setItem(storageKeys.lastAccount, context.student_id);
-}
-
-function renderRecentAccountOptions() {
-  if (!appState.login.recentAccounts.length) {
-    return '<mdui-menu-item value="">暂无历史账号</mdui-menu-item>';
-  }
-  return appState.login.recentAccounts
-    .map((item) => `<mdui-menu-item value="${item.student_id}">${item.student_id}</mdui-menu-item>`)
-    .join('');
-}
-
-function renderRecentAccountQuickSwitch() {
-  if (!appState.login.recentAccounts.length) {
-    return '<span class="panel-desc">暂无历史账号，登录后将自动记录。</span>';
-  }
-  return appState.login.recentAccounts
-    .slice(0, 4)
-    .map(
-      (item) => `<button type="button" class="recent-account-btn" data-student-id="${item.student_id}">
-        ${item.display_name ? `${item.display_name}（${item.student_id}）` : item.student_id}
-      </button>`,
-    )
-    .join('');
-}
-
-function removeRecentAccountById(studentId) {
-  if (!studentId) return false;
-  const remained = appState.login.recentAccounts.filter((item) => item.student_id !== studentId);
-  if (remained.length === appState.login.recentAccounts.length) return false;
-  saveRecentAccounts(remained);
-  if (localStorage.getItem(storageKeys.lastAccount) === studentId) {
-    if (remained[0]?.student_id) localStorage.setItem(storageKeys.lastAccount, remained[0].student_id);
-    else localStorage.removeItem(storageKeys.lastAccount);
-  }
-  return true;
-}
-
-function clearAllRecentAccounts() {
-  saveRecentAccounts([]);
-  localStorage.removeItem(storageKeys.lastAccount);
-}
-
-function rerenderLoginPage() {
-  if (appState.currentRoute !== '/login') return;
-  routeView.innerHTML = renderRoute('/login');
-  bindRouteEvents('/login');
-}
-
 function applyStatusToPage() {
   const statusNode = document.querySelector('#login-status');
   if (!statusNode) return;
@@ -618,72 +534,35 @@ function setStatus(message, type = 'muted') {
 }
 
 function set2faStatus(message, type = 'info') {
-  if (!twoFactorStatusEl) return;
-  twoFactorStatusEl.textContent = message;
-  twoFactorStatusEl.className = `two-factor-status visible ${type}`;
+  return authFlow.set2faStatus?.(message, type);
 }
 
 function clear2faStatus() {
-  if (!twoFactorStatusEl) return;
-  twoFactorStatusEl.textContent = '';
-  twoFactorStatusEl.className = 'two-factor-status';
+  return authFlow.clear2faStatus?.();
 }
 
 function stopWechatPolling() {
-  if (!wechatPollTimer) return;
-  clearTimeout(wechatPollTimer);
-  wechatPollTimer = null;
+  return authFlow.stopWechatPolling?.();
 }
 
 function updateMethodPanels() {
-  const method = twoFactorMethodField?.value || 'sms_code';
-  if (smsPanel) smsPanel.style.display = method === 'sms_code' ? '' : 'none';
-  if (wechatPanel) wechatPanel.style.display = method === 'wechat_qr' ? '' : 'none';
-  if (method !== 'wechat_qr') stopWechatPolling();
+  return authFlow.updateMethodPanels();
 }
 
 function resetTwoFactorState() {
-  pendingChallenge = null;
-  pendingMethods = [];
-  stopWechatPolling();
-  if (twoFactorCodeField) twoFactorCodeField.value = '';
-  if (twoFactorMethodField) twoFactorMethodField.value = 'sms_code';
-  if (wechatQrImg) {
-    wechatQrImg.style.display = 'none';
-    wechatQrImg.src = '';
-  }
-  if (wechatQrOverlay) wechatQrOverlay.style.display = 'none';
-  clear2faStatus();
+  return authFlow.resetTwoFactorState();
 }
 
 function closeTwoFactorDialog() {
-  stopWechatPolling();
-  if (twoFactorDialog) twoFactorDialog.open = false;
+  return authFlow.closeTwoFactorDialog();
 }
 
 function openTwoFactorDialog(methods = []) {
-  pendingMethods = methods;
-  if (twoFactorMethodField) twoFactorMethodField.value = methods.includes('sms_code') ? 'sms_code' : 'wechat_qr';
-  if (twoFactorCodeField) twoFactorCodeField.value = '';
-  clear2faStatus();
-  updateMethodPanels();
-  if (twoFactorDialog) twoFactorDialog.open = true;
+  return authFlow.openTwoFactorDialog?.(methods);
 }
 
 function renderTimeline(containerId) {
-  const container = document.querySelector(`#${containerId}`);
-  if (!container) return;
-  container.innerHTML = timelineData
-    .map(
-      (item) => `
-      <article class="timeline-item">
-        <header><strong>${item.source}</strong><time>${item.time}</time></header>
-        <div class="timeline-title">${item.title}</div>
-        <p>${item.detail}</p>
-      </article>
-    `,
-    )
-    .join('');
+  return renderers.renderTimeline(containerId);
 }
 
 function renderHome() {
@@ -715,7 +594,7 @@ function renderHome() {
 
 function renderLogin() {
   const apiBase = localStorage.getItem(storageKeys.apiBase) || 'http://127.0.0.1:8000';
-  const selectedRecent = getPreferredRecentAccountId();
+  const selectedRecent = loginAccountManager.getPreferredRecentAccountId();
   return `
     <section class="login-page">
       <mdui-card class="panel-card login-card">
@@ -726,14 +605,14 @@ function renderLogin() {
           <mdui-text-field name="password" type="password" toggle-password label="密码" variant="outlined" required></mdui-text-field>
           <mdui-text-field name="api_base" label="后端 API 地址" variant="outlined" value="${apiBase}" helper="默认指向本地后端服务"></mdui-text-field>
           <mdui-select id="recent-account-select" label="最近登录账号" variant="outlined" value="${selectedRecent}">
-            ${renderRecentAccountOptions()}
+            ${loginAccountManager.renderRecentAccountOptions()}
           </mdui-select>
           <div class="recent-account-tools">
             <button type="button" class="recent-account-tool-btn" id="delete-recent-account-btn">删除当前历史账号</button>
             <button type="button" class="recent-account-tool-btn danger" id="clear-recent-accounts-btn">清空全部历史账号</button>
           </div>
           <div class="recent-account-switches" id="recent-account-switches">
-            ${renderRecentAccountQuickSwitch()}
+            ${loginAccountManager.renderRecentAccountQuickSwitch()}
           </div>
           <div class="login-preferences">
             <label class="login-pref-item">
@@ -784,7 +663,7 @@ function renderOverview() {
         <mdui-card class="summary-card">
           <div class="summary-label">最后刷新时间</div>
           <div class="summary-value" id="overview-updated-at">${updatedAt}</div>
-          <div class="summary-note" id="overview-loading-note">${realtime.loading ? '正在刷新…' : '点击卡片可刷新'}</div>
+          <div class="summary-note" id="overview-loading-note">${realtime.loading ? '正在刷新…' : '点击按钮可手动刷新'}</div>
         </mdui-card>
       </div>
       <section class="main-grid">
@@ -907,7 +786,6 @@ function renderCollectors() {
   `;
 }
 
-// 渲染骨架屏
 function renderSkeleton(title, rows) {
   return `
     <section class="lower-grid">
@@ -1072,27 +950,7 @@ function showSkeleton(route) {
 }
 
 function renderRoute(route) {
-  if (route === '/home') return renderHome();
-  if (route === '/login') return renderLogin();
-  if (route === '/overview') return renderOverview();
-  if (route === '/collectors') {
-    return renderCollectors();
-  }
-  if (route === '/rules') {
-    return renderSkeleton('转发规则', [
-      { title: '触发条件', label: '关键词 / 优先级', desc: '支持包含、排除、正则等条件。', status: '骨架' },
-      { title: '消息模板', label: '文本模板', desc: '主题、正文、变量映射占位。', status: '骨架' },
-      { title: '渠道路由', label: '多渠道', desc: '按规则选择推送渠道。', status: '骨架' },
-    ]);
-  }
-  if (route === '/pushers') {
-    return renderSkeleton('推送器', [
-      { title: 'OneBot', label: 'QQ 机器人', desc: '连接地址与鉴权配置。', status: '骨架' },
-      { title: 'WxPusher', label: '微信推送', desc: 'AppToken 与 UID 管理。', status: '骨架' },
-      { title: '飞书', label: 'Webhook 机器人', desc: '签名与路由配置。', status: '骨架' },
-    ]);
-  }
-  return '';
+  return renderers.renderRoute(route);
 }
 
 function bindRouteEvents(route) {
@@ -1149,38 +1007,7 @@ function bindRouteEvents(route) {
 }
 
 function applyRealtimeToOverviewDom() {
-  if (appState.currentRoute !== '/overview') return;
-  const realtime = appState.realtime;
-  const student = document.querySelector('#overview-student-id');
-  const displayName = document.querySelector('#overview-display-name');
-  const health = document.querySelector('#overview-health');
-  const updatedAt = document.querySelector('#overview-updated-at');
-  const loadingNote = document.querySelector('#overview-loading-note');
-  const errorBox = document.querySelector('#overview-error');
-  const cookieBox = document.querySelector('#overview-cookie-box');
-  if (student) student.textContent = realtime.user?.student_id || '--';
-  if (displayName) displayName.textContent = `真实姓名：${realtime.user?.real_name || '--'}`;
-  if (health) health.textContent = realtime.health?.status || '--';
-  if (updatedAt) updatedAt.textContent = realtime.updatedAt || '--';
-  if (loadingNote) {
-    if (realtime.loading) {
-      loadingNote.innerHTML = '<span class="loading-spinner"></span>正在刷新…';
-    } else {
-      loadingNote.textContent = '点击卡片可刷新';
-    }
-  }
-  if (errorBox) {
-    errorBox.textContent = realtime.error || '';
-    errorBox.style.display = realtime.error ? '' : 'none';
-  }
-  if (cookieBox) {
-    const lines = appState.lastLoginResult?.cas_cookies?.length
-      ? formatCookies(appState.lastLoginResult.cas_cookies)
-      : appState.storedCookies?.length
-        ? formatCookies(appState.storedCookies)
-        : '当前会话暂无 Cookies 记录。';
-    cookieBox.textContent = lines;
-  }
+  return renderers.applyRealtimeToOverviewDom();
 }
 
 function handleRouteChange() {
@@ -1205,43 +1032,27 @@ function handleRouteChange() {
 }
 
 function getSystemThemeMode() {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return uiManager.getSystemThemeMode();
 }
 
 function getPreferredThemeMode() {
-  const stored = localStorage.getItem(storageKeys.themeMode);
-  if (stored === 'light' || stored === 'dark' || stored === 'auto') return stored;
-  return 'auto';
+  return uiManager.getPreferredThemeMode();
 }
 
 function updateThemeButton(mode) {
-  if (!themeToggle) return;
-  themeToggle.icon = mode === 'dark' ? 'light_mode' : 'dark_mode';
+  return uiManager.updateThemeButton(mode);
 }
 
 function updateThemeModeButtons(preference) {
-  if (!themeModeAutoButton || !themeModeLightButton || !themeModeDarkButton) return;
-  themeModeAutoButton.variant = preference === 'auto' ? 'filled' : 'outlined';
-  themeModeLightButton.variant = preference === 'light' ? 'filled' : 'outlined';
-  themeModeDarkButton.variant = preference === 'dark' ? 'filled' : 'outlined';
+  return uiManager.updateThemeModeButtons(preference);
 }
 
 function applyTheme(mode, preference = 'light') {
-  const normalized = mode === 'dark' ? 'dark' : 'light';
-  document.documentElement.dataset.theme = normalized;
-  localStorage.setItem(storageKeys.themeMode, preference);
-  updateThemeButton(normalized);
-  updateThemeModeButtons(preference);
-  if (window.mdui?.setTheme) window.mdui.setTheme(normalized);
-  if (window.mdui?.setColorScheme) window.mdui.setColorScheme(themeColors[normalized]);
+  return uiManager.applyTheme(mode, preference);
 }
 
 function applyThemeByPreference(preference) {
-  if (preference === 'auto') {
-    applyTheme(getSystemThemeMode(), 'auto');
-    return;
-  }
-  applyTheme(preference, preference);
+  return uiManager.applyThemeByPreference(preference);
 }
 
 // 默认颜色
@@ -1446,8 +1257,6 @@ function initTheme() {
   mediaQuery.addEventListener('change', (event) => {
     if (getPreferredThemeMode() === 'auto') applyTheme(event.matches ? 'dark' : 'light', 'auto');
   });
-  // 初始化颜色系统
-  initColorSystem();
 }
 
 async function parseJsonSafely(response) {
@@ -1507,336 +1316,55 @@ async function syncCurrentUser({ silent = false } = {}) {
 }
 
 function handleLoginSuccess(data) {
-  localStorage.setItem(storageKeys.token, data.access_token);
-  appState.lastLoginResult = data;
-  setStatus('登录成功，正在同步当前账号信息…', 'success');
-  closeTwoFactorDialog();
-  resetTwoFactorState();
-  void syncCurrentUser({ silent: true }).then((user) => {
-    void persistLoginContext(pendingLoginContext, user);
-  });
-  void syncSmartCampusProfile({ silent: true });
-  navigateTo('/overview');
+  return authFlow.handleLoginSuccess?.(data);
 }
 
 async function submitLoginWithPayload(payload, options = {}) {
-  const apiBase = String(payload.api_base || '').trim().replace(/\/$/, '');
-  if (!payload.student_id || !payload.password || !apiBase) {
-    setStatus('请完整填写学号、密码和后端地址。', 'error');
-    return;
-  }
-  const normalized = {
-    student_id: String(payload.student_id || '').trim(),
-    password: String(payload.password || ''),
-    api_base: apiBase,
-    remember_password: !!payload.remember_password,
-    auto_login: !!payload.auto_login,
-  };
-  if (normalized.auto_login) normalized.remember_password = true;
-  pendingLoginContext = normalized;
-  localStorage.setItem(storageKeys.lastAccount, normalized.student_id);
-  saveApiBase(apiBase);
-  if (!options.silent) setStatus('正在请求 backend 登录接口，请稍候…');
-  try {
-    const response = await fetch(`${apiBase}/api/v1/auth/cas/login`, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ student_id: normalized.student_id, password: normalized.password }),
-    });
-    const data = await parseJsonSafely(response);
-    if (!response.ok) throw new Error(formatApiError(data.detail, `登录失败（${response.status}）`));
-    if (data.requires_2fa) {
-      pendingChallenge = data.challenge_id;
-      openTwoFactorDialog(data.available_2fa_methods || []);
-      setStatus('检测到 CAS 需要二次验证，已弹出验证窗口。', 'muted');
-      return;
-    }
-    handleLoginSuccess(data);
-  } catch (error) {
-    setStatus(options.fromAuto ? `自动登录失败：${error.message}` : `登录失败：${error.message}`, 'error');
-  }
+  return authFlow.submitLoginWithPayload?.(payload, options);
 }
 
 async function handleLogin(event) {
-  event.preventDefault();
-  const formData = new FormData(event.currentTarget);
-  await submitLoginWithPayload({
-    student_id: formData.get('student_id'),
-    password: formData.get('password'),
-    api_base: formData.get('api_base'),
-    remember_password: !!document.querySelector('#remember-password')?.checked,
-    auto_login: !!document.querySelector('#auto-login')?.checked,
-  });
+  return authFlow.handleLogin(event);
 }
 
 async function tryAutoLoginOnLoginPage() {
-  if (appState.login.autoLoginTried || getToken()) return;
-  const target = appState.login.recentAccounts.find((item) => item.auto_login && item.password_cipher);
-  if (!target) return;
-  appState.login.autoLoginTried = true;
-  const password = await decryptSecret(target.password_cipher);
-  if (!password) return;
-  await fillLoginFormByAccount(target.student_id);
-  await submitLoginWithPayload(
-    {
-      student_id: target.student_id,
-      password,
-      api_base: target.api_base || 'http://127.0.0.1:8000',
-      remember_password: true,
-      auto_login: true,
-    },
-    { silent: true, fromAuto: true },
-  );
+  return authFlow.tryAutoLoginOnLoginPage?.();
 }
 
 async function initLoginEnhancements() {
-  const select = document.querySelector('#recent-account-select');
-  const rememberField = document.querySelector('#remember-password');
-  const autoField = document.querySelector('#auto-login');
-  const deleteCurrentButton = document.querySelector('#delete-recent-account-btn');
-  const clearAllButton = document.querySelector('#clear-recent-accounts-btn');
-  const preferredId = getPreferredRecentAccountId();
-  if (select) {
-    select.addEventListener('change', () => {
-      const sid = select.value || '';
-      if (sid) void fillLoginFormByAccount(sid);
-    });
-  }
-  document.querySelectorAll('.recent-account-btn').forEach((button) => {
-    button.addEventListener('click', () => {
-      const sid = button.getAttribute('data-student-id');
-      if (!sid) return;
-      if (select) select.value = sid;
-      void fillLoginFormByAccount(sid);
-    });
-  });
-  rememberField?.addEventListener('change', () => {
-    if (!rememberField.checked && autoField) autoField.checked = false;
-  });
-  autoField?.addEventListener('change', () => {
-    if (autoField.checked && rememberField) rememberField.checked = true;
-  });
-  deleteCurrentButton?.addEventListener('click', () => {
-    const sid = (select?.value || document.querySelector('#cas-login-form [name="student_id"]')?.value || '').trim();
-    if (!sid) {
-      setStatus('请选择要删除的历史账号。', 'error');
-      return;
-    }
-    if (!removeRecentAccountById(sid)) {
-      setStatus(`历史账号 ${sid} 不存在。`, 'error');
-      return;
-    }
-    setStatus(`已删除历史账号：${sid}`, 'success');
-    rerenderLoginPage();
-  });
-  clearAllButton?.addEventListener('click', () => {
-    if (!appState.login.recentAccounts.length) {
-      setStatus('当前没有可清空的历史账号。', 'muted');
-      return;
-    }
-    clearAllRecentAccounts();
-    setStatus('已清空全部历史账号。', 'success');
-    rerenderLoginPage();
-  });
-  if (preferredId) await fillLoginFormByAccount(preferredId);
-  await tryAutoLoginOnLoginPage();
+  return authFlow.initLoginEnhancements();
 }
 
 async function verifyTwoFactorCode() {
-  const apiBase = getApiBase();
-  const code = twoFactorCodeField.value.trim();
-  if (!pendingChallenge) return set2faStatus('请先登录。', 'error');
-  if (!code) return set2faStatus('请先输入验证码。', 'error');
-  set2faStatus('正在提交验证码…', 'info');
-  try {
-    const response = await fetch(`${apiBase}/api/v1/auth/cas/2fa/verify`, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ challenge_id: pendingChallenge, code }),
-    });
-    const data = await parseJsonSafely(response);
-    if (!response.ok) throw new Error(formatApiError(data.detail, `验证失败（${response.status}）`));
-    handleLoginSuccess(data);
-  } catch (error) {
-    set2faStatus(`验证失败：${error.message}`, 'error');
-  }
+  return authFlow.verifyTwoFactorCode();
 }
 
 async function sendTwoFactorCode() {
-  const apiBase = getApiBase();
-  if (!pendingChallenge) return set2faStatus('请先登录。', 'error');
-  if (!pendingMethods.includes('sms_code')) return set2faStatus('不支持短信验证码。', 'error');
-  set2faStatus('正在发送短信验证码…', 'info');
-  try {
-    const response = await fetch(`${apiBase}/api/v1/auth/cas/2fa/sms/send`, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ challenge_id: pendingChallenge }),
-    });
-    const data = await parseJsonSafely(response);
-    if (!response.ok) throw new Error(formatApiError(data.detail, `发送失败（${response.status}）`));
-    set2faStatus(data.message || '验证码已发送。', 'success');
-  } catch (error) {
-    set2faStatus(`发送失败：${error.message}`, 'error');
-  }
+  return authFlow.sendTwoFactorCode();
 }
 
 async function initiateWeChatQr() {
-  const apiBase = getApiBase();
-  if (!pendingChallenge) return set2faStatus('请先登录。', 'error');
-  if (!pendingMethods.includes('wechat_qr')) return set2faStatus('不支持微信扫码。', 'error');
-  set2faStatus('正在获取微信二维码…', 'info');
-  if (wechatQrImg) {
-    wechatQrImg.style.display = 'none';
-    wechatQrImg.src = '';
-  }
-  if (wechatQrOverlay) wechatQrOverlay.style.display = 'none';
-  try {
-    const response = await fetch(`${apiBase}/api/v1/auth/cas/2fa/wechat/init`, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ challenge_id: pendingChallenge }),
-    });
-    const data = await parseJsonSafely(response);
-    if (!response.ok) throw new Error(formatApiError(data.detail, `获取失败（${response.status}）`));
-    if (wechatQrImg) {
-      wechatQrImg.src = data.qr_image_url;
-      wechatQrImg.style.display = 'block';
-    }
-    set2faStatus('请使用微信扫描下方二维码。', 'info');
-    startWechatPolling();
-  } catch (error) {
-    set2faStatus(`获取二维码失败：${error.message}`, 'error');
-  }
+  return authFlow.initiateWeChatQr();
 }
 
 function startWechatPolling() {
-  stopWechatPolling();
-  pollWechatStatus();
+  return authFlow.startWechatPolling?.();
 }
 
 async function pollWechatStatus() {
-  const apiBase = getApiBase();
-  if (!pendingChallenge) return;
-  try {
-    const response = await fetch(`${apiBase}/api/v1/auth/cas/2fa/wechat/poll`, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ challenge_id: pendingChallenge }),
-    });
-    const data = await parseJsonSafely(response);
-    if (!response.ok) return set2faStatus(`轮询失败：${formatApiError(data.detail, String(response.status))}`, 'error');
-    const st = data.status;
-    if (st === 'waiting') {
-      wechatPollTimer = setTimeout(pollWechatStatus, 2000);
-      return;
-    }
-    if (st === 'scanned') {
-      set2faStatus('已扫码，请在手机上确认。', 'info');
-      if (wechatQrOverlay) {
-        wechatQrOverlay.textContent = '已扫码，请确认';
-        wechatQrOverlay.style.display = 'flex';
-      }
-      wechatPollTimer = setTimeout(pollWechatStatus, 1500);
-      return;
-    }
-    if (st === 'confirmed' && data.login_result) return handleLoginSuccess(data.login_result);
-    if (st === 'expired') return set2faStatus('二维码已过期，请重新获取。', 'error');
-    if (st === 'cancelled') return set2faStatus('已取消，可重新获取二维码。', 'error');
-    set2faStatus(data.message || '未知状态', 'error');
-  } catch (error) {
-    set2faStatus(`轮询异常：${error.message}`, 'error');
-  }
+  return authFlow.pollWechatStatus?.();
 }
 
 async function loadProfile() {
-  if (!getToken()) {
-    setStatus('请先登录后再读取当前用户。', 'error');
-    return;
-  }
-  setStatus('正在读取当前用户信息…');
-  const data = await syncCurrentUser();
-  if (!data) return;
-  await loadStoredCookies();
-  setStatus(
-    `当前用户\nID：${data.id}\n学号：${data.student_id}\n昵称：${data.display_name || '未设置'}\n真实姓名：${data.real_name || '未采集'}`,
-    'success',
-  );
+  return profileSessionManager.loadProfile();
 }
 
 async function loadStoredCookies() {
-  const token = getToken();
-  if (!token) {
-    appState.storedCookies = [];
-    return [];
-  }
-  try {
-    const response = await fetch(`${getApiBase()}/api/v1/me/cookies`, {
-      mode: 'cors',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await parseJsonSafely(response);
-    if (!response.ok) throw new Error(formatApiError(data.detail, `读取 Cookies 失败（${response.status}）`));
-    appState.storedCookies = Array.isArray(data) ? data : [];
-    return appState.storedCookies;
-  } catch (error) {
-    appState.storedCookies = [];
-    return [];
-  }
+  return profileSessionManager.loadStoredCookies();
 }
 
 async function fetchOverviewRealtime(silent = false) {
-  const token = getToken();
-  if (!token) {
-    appState.realtime.error = '未登录，无法请求概览数据。';
-    return;
-  }
-  appState.realtime.loading = true;
-  appState.realtime.error = '';
-  applyRealtimeToOverviewDom();
-  const apiBase = getApiBase();
-  try {
-    const [healthResp, meResp, cookieResp] = await Promise.all([
-      fetch(`${apiBase}/health`, { mode: 'cors' }),
-      fetch(`${apiBase}/api/v1/me`, {
-        mode: 'cors',
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-      fetch(`${apiBase}/api/v1/me/cookies`, {
-        mode: 'cors',
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-    ]);
-    const healthData = await parseJsonSafely(healthResp);
-    const meData = await parseJsonSafely(meResp);
-    const cookieData = await parseJsonSafely(cookieResp);
-    if (!healthResp.ok) throw new Error(formatApiError(healthData.detail, `health 请求失败（${healthResp.status}）`));
-    if (meResp.status === 401) {
-      clearLocalAuth();
-      setStatus('登录态已失效，请重新登录。', 'error');
-      navigateTo('/login');
-      return;
-    }
-    if (!meResp.ok) throw new Error(formatApiError(meData.detail, `me 请求失败（${meResp.status}）`));
-    if (!cookieResp.ok) throw new Error(formatApiError(cookieData.detail, `cookies 请求失败（${cookieResp.status}）`));
-    appState.realtime.health = healthData;
-    appState.realtime.user = meData;
-    appState.storedCookies = Array.isArray(cookieData) ? cookieData : [];
-    appState.currentUser = meData;
-    updateAccountDisplay();
-    appState.realtime.updatedAt = new Date().toLocaleTimeString();
-  } catch (error) {
-    appState.realtime.error = `实时数据获取失败：${error.message}`;
-  } finally {
-    appState.realtime.loading = false;
-    if (!silent) setStatus('概览实时数据已更新。', 'success');
-    applyRealtimeToOverviewDom();
-  }
+  return profileSessionManager.fetchOverviewRealtime(silent);
 }
 
 function applySmartCampusToDom() {
@@ -1846,13 +1374,7 @@ function applySmartCampusToDom() {
   const listNode = document.querySelector('#smart-campus-list');
   if (statusNode) {
     statusNode.className = `result-card ${sc.error ? 'error' : 'muted'}`;
-    if (sc.error) {
-      statusNode.textContent = sc.error;
-    } else if (sc.loading) {
-      statusNode.innerHTML = '<span class="loading-spinner"></span>正在同步智慧校园通知…';
-    } else {
-      statusNode.textContent = `最近更新时间：${sc.updatedAt || '--'}`;
-    }
+    statusNode.textContent = sc.error ? sc.error : (sc.loading ? '正在同步智慧校园通知…' : `最近更新时间：${sc.updatedAt || '--'}`);
   }
   if (listNode) {
     if (!sc.messages.length) {
@@ -1862,9 +1384,9 @@ function applySmartCampusToDom() {
     listNode.innerHTML = sc.messages
       .map((item) => `
       <article class="timeline-item">
-        <header><strong>${escapeHtml(item.sender || '系统通知')}</strong><time>${escapeHtml(item.occurred_at_text || item.fetched_at || '--')}</time></header>
-        <div class="timeline-title">${escapeHtml(item.title || '(无标题)')}</div>
-        <p>${escapeHtml(item.content_text || item.content_html || '')}</p>
+        <header><strong>${item.sender || '系统通知'}</strong><time>${item.occurred_at_text || item.fetched_at || '--'}</time></header>
+        <div class="timeline-title">${item.title || '(无标题)'}</div>
+        <p>${item.content_text || item.content_html || ''}</p>
       </article>
     `)
       .join('');
@@ -1872,77 +1394,15 @@ function applySmartCampusToDom() {
 }
 
 async function syncSmartCampusProfile({ silent = false } = {}) {
-  const token = getToken();
-  if (!token) return null;
-  try {
-    const response = await fetch(`${getApiBase()}/api/v1/collectors/smart-campus/profile/sync`, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await parseJsonSafely(response);
-    if (!response.ok) throw new Error(formatApiError(data.detail, `同步失败（${response.status}）`));
-    if (appState.currentUser) {
-      appState.currentUser.real_name = data.real_name || appState.currentUser.real_name;
-    }
-    if (appState.realtime.user) {
-      appState.realtime.user.real_name = data.real_name || appState.realtime.user.real_name;
-    }
-    updateAccountDisplay();
-    applyRealtimeToOverviewDom();
-    if (!silent) setStatus(`已同步真实姓名：${data.real_name || '未获取到'}`, 'success');
-    return data;
-  } catch (error) {
-    if (!silent) setStatus(`同步真实姓名失败：${error.message}`, 'error');
-    return null;
-  }
+  return smartCampusManager.syncSmartCampusProfile({ silent });
 }
 
 function toggleSmartCampusScheduleMode() {
-  const modeField = document.querySelector('#sc-schedule-mode');
-  const visualPanel = document.querySelector('#sc-visual-settings');
-  const cronPanel = document.querySelector('#sc-cron-settings');
-  const mode = modeField?.value || 'visual';
-  if (visualPanel) visualPanel.style.display = mode === 'visual' ? '' : 'none';
-  if (cronPanel) cronPanel.style.display = mode === 'cron' ? '' : 'none';
+  return smartCampusManager.toggleSmartCampusScheduleMode();
 }
 
 async function loadSmartCampusSettings(silent = false) {
-  const token = getToken();
-  if (!token) return null;
-  try {
-    const response = await fetch(`${getApiBase()}/api/v1/collectors/smart-campus/settings`, {
-      mode: 'cors',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await parseJsonSafely(response);
-    if (!response.ok) throw new Error(formatApiError(data.detail, `读取设置失败（${response.status}）`));
-    appState.smartCampus.setting = {
-      ...appState.smartCampus.setting,
-      ...data,
-    };
-    if (appState.currentRoute === '/collectors') {
-      const setting = appState.smartCampus.setting;
-      const enabledSwitch = document.querySelector('#sc-enabled-switch');
-      const modeField = document.querySelector('#sc-schedule-mode');
-      const cronField = document.querySelector('#sc-cron-expr');
-      const visualModeField = document.querySelector('#sc-visual-mode');
-      const intervalField = document.querySelector('#sc-interval-minutes');
-      const dailyTimeField = document.querySelector('#sc-daily-time');
-      if (enabledSwitch) enabledSwitch.checked = !!setting.enabled;
-      if (modeField) modeField.value = setting.schedule_mode || 'visual';
-      if (cronField) cronField.value = setting.cron_expr || '*/30 * * * *';
-      if (visualModeField) visualModeField.value = setting.visual_mode || 'every_n_minutes';
-      if (intervalField) intervalField.value = String(setting.interval_minutes || 30);
-      if (dailyTimeField) dailyTimeField.value = setting.daily_time || '08:00';
-      toggleSmartCampusScheduleMode();
-    }
-    if (!silent) setStatus('采集器设置已加载。', 'success');
-    return data;
-  } catch (error) {
-    if (!silent) setStatus(`读取采集器设置失败：${error.message}`, 'error');
-    return null;
-  }
+  return smartCampusManager.loadSmartCampusSettings(silent);
 }
 
 async function saveSmartCampusSettings() {
@@ -1971,174 +1431,45 @@ async function saveSmartCampusSettings() {
     if (!response.ok) throw new Error(formatApiError(data.detail, `保存失败（${response.status}）`));
     appState.smartCampus.setting = { ...appState.smartCampus.setting, ...data };
     setStatus('采集器设置已保存。', 'success');
-    applySmartCampusToDom();
   } catch (error) {
     setStatus(`保存采集器设置失败：${error.message}`, 'error');
-    applySmartCampusToDom();
   }
 }
 
 function applySmartCampusQueryFromDom() {
-  appState.smartCampus.query = {
-    q: document.querySelector('#sc-search-q')?.value?.trim() || '',
-    sender: document.querySelector('#sc-search-sender')?.value?.trim() || '',
-    read_state: document.querySelector('#sc-read-state')?.value || 'all',
-    sort_by: document.querySelector('#sc-sort-by')?.value || 'fetched_at',
-    sort_dir: document.querySelector('#sc-sort-dir')?.value || 'desc',
-  };
+  return smartCampusManager.applySmartCampusQueryFromDom();
 }
 
 async function applySmartCampusQuery() {
-  applySmartCampusQueryFromDom();
-  await loadSmartCampusMessages();
+  return smartCampusManager.applySmartCampusQuery();
 }
 
 function resetSmartCampusQuery() {
-  appState.smartCampus.query = {
-    q: '',
-    sender: '',
-    read_state: 'all',
-    sort_by: 'fetched_at',
-    sort_dir: 'desc',
-  };
-  routeView.innerHTML = renderRoute('/collectors');
-  bindRouteEvents('/collectors');
+  return smartCampusManager.resetSmartCampusQuery();
 }
 
 async function loadSmartCampusMessages(silent = false) {
-  const token = getToken();
-  if (!token) return [];
-  appState.smartCampus.loading = true;
-  appState.smartCampus.error = '';
-  applySmartCampusToDom();
-  try {
-    const query = appState.smartCampus.query || {};
-    const qs = new URLSearchParams({
-      q: query.q || '',
-      sender: query.sender || '',
-      read_state: query.read_state || 'all',
-      sort_by: query.sort_by || 'fetched_at',
-      sort_dir: query.sort_dir || 'desc',
-    });
-    const response = await fetch(`${getApiBase()}/api/v1/collectors/smart-campus/messages?${qs.toString()}`, {
-      mode: 'cors',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await parseJsonSafely(response);
-    if (!response.ok) throw new Error(formatApiError(data.detail, `读取失败（${response.status}）`));
-    appState.smartCampus.messages = Array.isArray(data) ? data : [];
-    appState.smartCampus.updatedAt = new Date().toLocaleTimeString();
-    if (!silent) setStatus(`已加载 ${appState.smartCampus.messages.length} 条智慧校园通知。`, 'success');
-  } catch (error) {
-    appState.smartCampus.error = `读取智慧校园通知失败：${error.message}`;
-    if (!silent) setStatus(appState.smartCampus.error, 'error');
-  } finally {
-    appState.smartCampus.loading = false;
-    applySmartCampusToDom();
-  }
-  return appState.smartCampus.messages;
+  return smartCampusManager.loadSmartCampusMessages(silent);
 }
 
 async function syncSmartCampusMessages() {
-  const token = getToken();
-  if (!token) return setStatus('请先登录后再同步采集器。', 'error');
-  appState.smartCampus.loading = true;
-  appState.smartCampus.error = '';
-  applySmartCampusToDom();
-  try {
-    const response = await fetch(`${getApiBase()}/api/v1/collectors/smart-campus/messages/sync`, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await parseJsonSafely(response);
-    if (!response.ok) throw new Error(formatApiError(data.detail, `同步失败（${response.status}）`));
-    appState.smartCampus.messages = Array.isArray(data.messages) ? data.messages : [];
-    appState.smartCampus.updatedAt = new Date().toLocaleTimeString();
-    setStatus(`智慧校园通知同步完成：抓取 ${data.fetched_count}，新增 ${data.saved_count}，标记已读 ${data.marked_read_count || 0}。`, 'success');
-  } catch (error) {
-    appState.smartCampus.error = `同步智慧校园通知失败：${error.message}`;
-    setStatus(appState.smartCampus.error, 'error');
-  } finally {
-    appState.smartCampus.loading = false;
-    applySmartCampusToDom();
-  }
-}
-
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('头像读取失败'));
-    reader.readAsDataURL(file);
-  });
+  return smartCampusManager.syncSmartCampusMessages();
 }
 
 async function onAvatarFileSelected(event) {
-  const file = event.target?.files?.[0];
-  if (!file) return;
-  try {
-    const dataUrl = await fileToDataUrl(file);
-    if (!appState.realtime.user) appState.realtime.user = {};
-    appState.realtime.user.avatar_base64 = dataUrl;
-    const preview = document.querySelector('#profile-avatar-preview');
-    const placeholder = document.querySelector('#profile-avatar-placeholder');
-    if (preview) {
-      preview.src = dataUrl;
-      preview.style.display = '';
-    }
-    if (placeholder) placeholder.style.display = 'none';
-    setStatus('头像已选择，点击保存后写入数据库。', 'success');
-  } catch (error) {
-    setStatus(`头像处理失败：${error.message}`, 'error');
-  }
+  return profileSessionManager.onAvatarFileSelected(event);
 }
 
 async function saveProfile() {
-  const token = getToken();
-  if (!token) return setStatus('请先登录后再保存资料。', 'error');
-  const nameField = document.querySelector('#profile-display-name');
-  const displayName = nameField?.value?.trim() || '';
-  const avatarBase64 = appState.realtime.user?.avatar_base64 || '';
-  setStatus('正在保存昵称与头像…');
-  try {
-    const response = await fetch(`${getApiBase()}/api/v1/profile`, {
-      method: 'PUT',
-      mode: 'cors',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        display_name: displayName,
-        avatar_base64: avatarBase64,
-      }),
-    });
-    const data = await parseJsonSafely(response);
-    if (!response.ok) throw new Error(formatApiError(data.detail, `保存失败（${response.status}）`));
-    appState.currentUser = data;
-    appState.realtime.user = data;
-    updateAccountDisplay();
-    applyRealtimeToOverviewDom();
-    setStatus('昵称与头像保存成功。', 'success');
-  } catch (error) {
-    setStatus(`保存失败：${error.message}`, 'error');
-  }
+  return profileSessionManager.saveProfile();
 }
 
 async function restoreSavedSession() {
-  updateAccountDisplay();
-  if (!getToken()) return;
-  const user = await syncCurrentUser({ silent: true });
-  if (user) await loadStoredCookies();
-  if (user) await syncSmartCampusProfile({ silent: true });
-  if (user) setStatus(`已恢复登录态：${resolveNickname(user)}`, 'success');
+  return profileSessionManager.restoreSavedSession();
 }
 
 function toggleAvatarMenu(forceOpen) {
-  if (!topAvatarPanel) return;
-  const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : topAvatarPanel.hidden;
-  topAvatarPanel.hidden = !shouldOpen;
+  return uiManager.toggleAvatarMenu(forceOpen);
 }
 
 function debounce(func, wait) {
@@ -2163,57 +1494,10 @@ function escapeHtml(unsafe) {
 }
 
 function handleLogout() {
-  clearLocalAuth();
-  setStatus('已登出，可重新登录或切换账号。', 'muted');
-  navigateTo('/login');
+  return uiManager.handleLogout();
 }
 
-menuToggle?.addEventListener('click', () => {
-  drawer.open = !drawer.open;
-});
-themeToggle?.addEventListener('click', () => {
-  const current = document.documentElement.dataset.theme || 'light';
-  applyTheme(current === 'dark' ? 'light' : 'dark', current === 'dark' ? 'light' : 'dark');
-});
-themeModeAutoButton?.addEventListener('click', () => {
-  applyThemeByPreference('auto');
-  drawer.open = false;
-});
-themeModeLightButton?.addEventListener('click', () => {
-  applyThemeByPreference('light');
-  drawer.open = false;
-});
-themeModeDarkButton?.addEventListener('click', () => {
-  applyThemeByPreference('dark');
-  drawer.open = false;
-});
-drawer?.querySelectorAll('mdui-list-item[href]').forEach((node) => {
-  node.addEventListener('click', () => {
-    if (window.matchMedia('(max-width: 1024px)').matches) drawer.open = false;
-  });
-});
-topAvatarTrigger?.addEventListener('click', () => toggleAvatarMenu());
-menuProfileButton?.addEventListener('click', () => {
-  toggleAvatarMenu(false);
-  navigateTo('/overview');
-  requestAnimationFrame(() => {
-    document.querySelector('#profile-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
-});
-menuLogoutButton?.addEventListener('click', () => {
-  toggleAvatarMenu(false);
-  handleLogout();
-});
-drawerLogoutButton?.addEventListener('click', () => {
-  if (window.matchMedia('(max-width: 1024px)').matches) drawer.open = false;
-  handleLogout();
-});
-document.addEventListener('click', (event) => {
-  if (!topAvatarPanel || topAvatarPanel.hidden) return;
-  const insidePanel = topAvatarPanel.contains(event.target);
-  const isTrigger = topAvatarTrigger?.contains(event.target);
-  if (!insidePanel && !isTrigger) topAvatarPanel.hidden = true;
-});
+uiManager.bindShellEvents();
 
 window.addEventListener('hashchange', handleRouteChange);
 twoFactorMethodField?.addEventListener('change', updateMethodPanels);
@@ -2226,7 +1510,7 @@ close2faDialogButton?.addEventListener('click', closeTwoFactorDialog);
 ThemeManager.init();
 
 resetTwoFactorState();
-appState.login.recentAccounts = loadRecentAccounts();
+loginAccountManager.initRecentAccounts();
 updateAccountDisplay();
 
 // 初始化颜色
