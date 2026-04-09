@@ -71,6 +71,59 @@
             <mdui-button id="theme-mode-dark" variant="outlined" full-width>夜间模式</mdui-button>
           </div>
         </div>
+        <div class="drawer-font-panel">
+          <div class="drawer-color-title">字体大小</div>
+          <div class="font-size-controls">
+            <mdui-button id="font-size-sm" variant="outlined" size="small">小</mdui-button>
+            <mdui-button id="font-size-base" variant="filled" size="small">中</mdui-button>
+            <mdui-button id="font-size-lg" variant="outlined" size="small">大</mdui-button>
+          </div>
+          <div class="font-size-preview">
+            <p class="font-size-preview-text">这是字体大小预览文本</p>
+          </div>
+        </div>
+        <div class="drawer-color-panel">
+          <div class="drawer-color-title">自定义颜色</div>
+          <div class="color-picker-group">
+            <div class="color-picker-item">
+              <span class="color-picker-label" data-tooltip="主色调：应用于按钮、链接和主要交互元素">主色调</span>
+              <div class="color-picker" style="background-color: #1e40af;">
+                <input type="color" id="color-primary" value="#1e40af">
+              </div>
+            </div>
+            <div class="color-picker-item">
+              <span class="color-picker-label" data-tooltip="强调色：应用于次要交互元素和高亮显示">强调色</span>
+              <div class="color-picker" style="background-color: #0284c7;">
+                <input type="color" id="color-accent" value="#0284c7">
+              </div>
+            </div>
+            <div class="color-picker-item">
+              <span class="color-picker-label" data-tooltip="危险色：应用于错误提示和删除操作">危险色</span>
+              <div class="color-picker" style="background-color: #dc2626;">
+                <input type="color" id="color-danger" value="#dc2626">
+              </div>
+            </div>
+          </div>
+          <div class="drawer-color-title">预设颜色</div>
+          <div class="preset-colors" id="preset-colors">
+            <div class="preset-color" data-color="#1e40af" style="background-color: #1e40af;"></div>
+            <div class="preset-color" data-color="#0369a1" style="background-color: #0369a1;"></div>
+            <div class="preset-color" data-color="#059669" style="background-color: #059669;"></div>
+            <div class="preset-color" data-color="#d97706" style="background-color: #d97706;"></div>
+            <div class="preset-color" data-color="#b91c1c" style="background-color: #b91c1c;"></div>
+            <div class="preset-color" data-color="#7c3aed" style="background-color: #7c3aed;"></div>
+            <div class="preset-color" data-color="#1e3a8a" style="background-color: #1e3a8a;"></div>
+            <div class="preset-color" data-color="#0c4a6e" style="background-color: #0c4a6e;"></div>
+            <div class="preset-color" data-color="#065f46" style="background-color: #065f46;"></div>
+            <div class="preset-color" data-color="#92400e" style="background-color: #92400e;"></div>
+            <div class="preset-color" data-color="#7f1d1d" style="background-color: #7f1d1d;"></div>
+            <div class="preset-color" data-color="#5b21b6" style="background-color: #5b21b6;"></div>
+          </div>
+          <div class="color-actions">
+            <mdui-button id="reset-colors-btn" variant="outlined" full-width>重置颜色</mdui-button>
+            <mdui-button id="save-colors-btn" variant="filled" full-width>保存颜色</mdui-button>
+          </div>
+        </div>
       </mdui-navigation-drawer>
 
       <mdui-layout-main>
