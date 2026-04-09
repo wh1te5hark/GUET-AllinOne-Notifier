@@ -39,6 +39,17 @@ const wechatPanel = document.querySelector('#wechat-panel');
 const wechatQrImg = document.querySelector('#wechat-qr-img');
 const wechatQrOverlay = document.querySelector('#wechat-qr-overlay');
 
+// 颜色相关元素
+const colorPrimaryInput = document.querySelector('#color-primary');
+const colorAccentInput = document.querySelector('#color-accent');
+const colorDangerInput = document.querySelector('#color-danger');
+const presetColorsContainer = document.querySelector('#preset-colors');
+const resetColorsButton = document.querySelector('#reset-colors-btn');
+const saveColorsButton = document.querySelector('#save-colors-btn');
+const fontSizeSmallBtn = document.querySelector('#font-size-sm');
+const fontSizeBaseBtn = document.querySelector('#font-size-base');
+const fontSizeLargeBtn = document.querySelector('#font-size-lg');
+
 const storageKeys = {
   token: 'guet-notifier-access-token',
   apiBase: 'guet-notifier-api-base',
@@ -46,6 +57,245 @@ const storageKeys = {
   recentAccounts: 'guet-notifier-recent-accounts',
   lastAccount: 'guet-notifier-last-account',
   cryptoKey: 'guet-notifier-crypto-key',
+  customColors: 'guet-notifier-custom-colors',
+  fontSize: 'guet-notifier-font-size',
+};
+
+// 主题管理模块
+const ThemeManager = {
+  getMode() {
+    const stored = localStorage.getItem(storageKeys.themeMode);
+    return stored || 'auto';
+  },
+  
+  saveMode(mode) {
+    localStorage.setItem(storageKeys.themeMode, mode);
+  },
+  
+  applyMode(mode) {
+    let finalMode = mode;
+    if (mode === 'auto') {
+      finalMode = this.getSystemMode();
+    }
+    document.documentElement.dataset.theme = finalMode;
+    this.updateButtons(mode);
+    if (window.mdui?.setColorScheme) {
+      window.mdui.setColorScheme(themeColors[finalMode] || themeColors.light);
+    }
+  },
+  
+  getSystemMode() {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  },
+  
+  updateButtons(mode) {
+    if (themeModeAutoButton) themeModeAutoButton.setAttribute('variant', mode === 'auto' ? 'filled' : 'outlined');
+    if (themeModeLightButton) themeModeLightButton.setAttribute('variant', mode === 'light' ? 'filled' : 'outlined');
+    if (themeModeDarkButton) themeModeDarkButton.setAttribute('variant', mode === 'dark' ? 'filled' : 'outlined');
+  },
+  
+  init() {
+    const savedMode = this.getMode();
+    this.applyMode(savedMode);
+    this.bindEvents();
+  },
+  
+  bindEvents() {
+    if (themeModeAutoButton) {
+      themeModeAutoButton.addEventListener('click', () => {
+        this.applyMode('auto');
+        this.saveMode('auto');
+      });
+    }
+    if (themeModeLightButton) {
+      themeModeLightButton.addEventListener('click', () => {
+        this.applyMode('light');
+        this.saveMode('light');
+      });
+    }
+    if (themeModeDarkButton) {
+      themeModeDarkButton.addEventListener('click', () => {
+        this.applyMode('dark');
+        this.saveMode('dark');
+      });
+    }
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      const currentMode = this.getMode();
+      if (currentMode === 'auto') {
+        this.applyMode('auto');
+      }
+    });
+  }
+};
+
+// 颜色管理模块
+const ColorManager = {
+  defaultColors: {
+    primary: '#1e40af',
+    accent: '#0284c7',
+    danger: '#dc2626',
+  },
+  
+  getColors() {
+    const stored = localStorage.getItem(storageKeys.customColors);
+    if (!stored) return this.defaultColors;
+    try {
+      const colors = JSON.parse(stored);
+      return {
+        primary: colors.primary || this.defaultColors.primary,
+        accent: colors.accent || this.defaultColors.accent,
+        danger: colors.danger || this.defaultColors.danger,
+      };
+    } catch {
+      return this.defaultColors;
+    }
+  },
+  
+  saveColors(colors) {
+    localStorage.setItem(storageKeys.customColors, JSON.stringify(colors));
+  },
+  
+  applyColors(colors) {
+    // 更新CSS变量
+    document.documentElement.style.setProperty('--guet-primary', colors.primary);
+    document.documentElement.style.setProperty('--guet-accent', colors.accent);
+    document.documentElement.style.setProperty('--guet-danger', colors.danger);
+    
+    // 更新颜色选择器的值和背景色
+    if (colorPrimaryInput) {
+      colorPrimaryInput.value = colors.primary;
+      const picker = colorPrimaryInput.closest('.color-picker');
+      if (picker) picker.style.backgroundColor = colors.primary;
+    }
+    if (colorAccentInput) {
+      colorAccentInput.value = colors.accent;
+      const picker = colorAccentInput.closest('.color-picker');
+      if (picker) picker.style.backgroundColor = colors.accent;
+    }
+    if (colorDangerInput) {
+      colorDangerInput.value = colors.danger;
+      const picker = colorDangerInput.closest('.color-picker');
+      if (picker) picker.style.backgroundColor = colors.danger;
+    }
+    
+    // 更新MDUI主题颜色
+    if (window.mdui?.setColorScheme) {
+      const currentMode = document.documentElement.dataset.theme || 'light';
+      window.mdui.setColorScheme(colors.primary);
+    }
+  },
+  
+  bindEvents() {
+    if (colorPrimaryInput) {
+      colorPrimaryInput.addEventListener('input', (e) => {
+        const colors = this.getColors();
+        colors.primary = e.target.value;
+        this.applyColors(colors);
+      });
+    }
+    if (colorAccentInput) {
+      colorAccentInput.addEventListener('input', (e) => {
+        const colors = this.getColors();
+        colors.accent = e.target.value;
+        this.applyColors(colors);
+      });
+    }
+    if (colorDangerInput) {
+      colorDangerInput.addEventListener('input', (e) => {
+        const colors = this.getColors();
+        colors.danger = e.target.value;
+        this.applyColors(colors);
+      });
+    }
+    if (presetColorsContainer) {
+      presetColorsContainer.addEventListener('click', (e) => {
+        const presetColor = e.target.closest('.preset-color');
+        if (presetColor) {
+          const color = presetColor.dataset.color;
+          const colors = this.getColors();
+          colors.primary = color;
+          this.applyColors(colors);
+        }
+      });
+    }
+    if (resetColorsButton) {
+      resetColorsButton.addEventListener('click', () => {
+        this.applyColors(this.defaultColors);
+      });
+    }
+    if (saveColorsButton) {
+      saveColorsButton.addEventListener('click', () => {
+        const colors = this.getColors();
+        if (colorPrimaryInput) colors.primary = colorPrimaryInput.value;
+        if (colorAccentInput) colors.accent = colorAccentInput.value;
+        if (colorDangerInput) colors.danger = colorDangerInput.value;
+        this.saveColors(colors);
+        setStatus('颜色保存成功！', 'success');
+      });
+    }
+  }
+};
+
+// 字体大小管理模块
+const FontSizeManager = {
+  getSize() {
+    const stored = localStorage.getItem(storageKeys.fontSize);
+    return stored || 'base';
+  },
+  
+  saveSize(size) {
+    localStorage.setItem(storageKeys.fontSize, size);
+  },
+  
+  applySize(size) {
+    // 重置所有按钮状态
+    if (fontSizeSmallBtn) fontSizeSmallBtn.setAttribute('variant', 'outlined');
+    if (fontSizeBaseBtn) fontSizeBaseBtn.setAttribute('variant', 'outlined');
+    if (fontSizeLargeBtn) fontSizeLargeBtn.setAttribute('variant', 'outlined');
+    
+    // 设置选中按钮状态
+    switch (size) {
+      case 'sm':
+        if (fontSizeSmallBtn) fontSizeSmallBtn.setAttribute('variant', 'filled');
+        document.documentElement.style.setProperty('--guet-font-size-base', '0.875rem');
+        break;
+      case 'lg':
+        if (fontSizeLargeBtn) fontSizeLargeBtn.setAttribute('variant', 'filled');
+        document.documentElement.style.setProperty('--guet-font-size-base', '1.125rem');
+        break;
+      default:
+        if (fontSizeBaseBtn) fontSizeBaseBtn.setAttribute('variant', 'filled');
+        document.documentElement.style.setProperty('--guet-font-size-base', '1rem');
+        break;
+    }
+  },
+  
+  bindEvents() {
+    if (fontSizeSmallBtn) {
+      fontSizeSmallBtn.addEventListener('click', () => {
+        this.applySize('sm');
+        this.saveSize('sm');
+      });
+    }
+    if (fontSizeBaseBtn) {
+      fontSizeBaseBtn.addEventListener('click', () => {
+        this.applySize('base');
+        this.saveSize('base');
+      });
+    }
+    if (fontSizeLargeBtn) {
+      fontSizeLargeBtn.addEventListener('click', () => {
+        this.applySize('lg');
+        this.saveSize('lg');
+      });
+    }
+  },
+  
+  init() {
+    const savedSize = this.getSize();
+    this.applySize(savedSize);
+    this.bindEvents();
+  }
 };
 const themeColors = { light: '#1662c4', dark: '#6e9bff' };
 
@@ -534,7 +784,7 @@ function renderOverview() {
         <mdui-card class="summary-card">
           <div class="summary-label">最后刷新时间</div>
           <div class="summary-value" id="overview-updated-at">${updatedAt}</div>
-          <div class="summary-note" id="overview-loading-note">${realtime.loading ? '正在刷新…' : '点击按钮可手动刷新'}</div>
+          <div class="summary-note" id="overview-loading-note">${realtime.loading ? '正在刷新…' : '点击卡片可刷新'}</div>
         </mdui-card>
       </div>
       <section class="main-grid">
@@ -657,6 +907,7 @@ function renderCollectors() {
   `;
 }
 
+// 渲染骨架屏
 function renderSkeleton(title, rows) {
   return `
     <section class="lower-grid">
@@ -683,6 +934,141 @@ function renderSkeleton(title, rows) {
       </mdui-card>
     </section>
   `;
+}
+
+// 渲染首页骨架屏
+function renderHomeSkeleton() {
+  return `
+    <section class="overview-section">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">控制台主页</div>
+          <h1>把分散在各系统里的提醒集中管理</h1>
+          <p>阶段一已支持 CAS 登录、2FA、会话持久化与消息概览。</p>
+        </div>
+        <div class="overview-actions">
+          <div class="skeleton skeleton-button"></div>
+          <div class="skeleton skeleton-button"></div>
+        </div>
+      </div>
+      <div class="summary-grid">
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-title"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-title"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-title"></div>
+        </div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton skeleton-title"></div>
+        <div class="skeleton-timeline-item">
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text"></div>
+        </div>
+        <div class="skeleton-timeline-item">
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text"></div>
+        </div>
+        <div class="skeleton-timeline-item">
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text"></div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+// 渲染概览页骨架屏
+function renderOverviewSkeleton() {
+  return `
+    <section>
+      <div class="summary-grid">
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-text"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-text"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-text"></div>
+        </div>
+      </div>
+      <section class="main-grid">
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text"></div>
+          <div class="overview-actions" style="margin-top:0.8rem">
+            <div class="skeleton skeleton-button"></div>
+            <div class="skeleton skeleton-button"></div>
+            <div class="skeleton skeleton-button"></div>
+          </div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text"></div>
+        </div>
+        <div class="skeleton-card" style="grid-column:1 / -1">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-text"></div>
+          <div class="profile-editor">
+            <div class="profile-avatar-wrap">
+              <div class="skeleton skeleton-avatar"></div>
+            </div>
+            <div class="profile-fields">
+              <div class="skeleton skeleton-text"></div>
+              <div class="skeleton skeleton-text"></div>
+              <div class="skeleton skeleton-button"></div>
+            </div>
+          </div>
+        </div>
+        <div class="skeleton-card" style="grid-column:1 / -1">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton-timeline-item">
+            <div class="skeleton skeleton-text"></div>
+            <div class="skeleton skeleton-text"></div>
+            <div class="skeleton skeleton-text"></div>
+          </div>
+          <div class="skeleton-timeline-item">
+            <div class="skeleton skeleton-text"></div>
+            <div class="skeleton skeleton-text"></div>
+            <div class="skeleton skeleton-text"></div>
+          </div>
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+// 显示骨架屏
+function showSkeleton(route) {
+  switch (route) {
+    case '/home':
+      routeView.innerHTML = renderHomeSkeleton();
+      break;
+    case '/overview':
+      routeView.innerHTML = renderOverviewSkeleton();
+      break;
+    default:
+      break;
+  }
 }
 
 function renderRoute(route) {
@@ -720,6 +1106,7 @@ function bindRouteEvents(route) {
   }
   if (route === '/overview') {
     document.querySelector('#refresh-overview-btn')?.addEventListener('click', () => fetchOverviewRealtime());
+    document.querySelector('#overview-loading-note')?.parentElement?.addEventListener('click', () => fetchOverviewRealtime());
     document.querySelector('#profile-avatar-file')?.addEventListener('change', onAvatarFileSelected);
     document.querySelector('#save-profile-btn')?.addEventListener('click', saveProfile);
     applyRealtimeToOverviewDom();
@@ -740,6 +1127,9 @@ function bindRouteEvents(route) {
     document.querySelector('#reset-smart-campus-query-btn')?.addEventListener('click', () => {
       resetSmartCampusQuery();
     });
+    const debouncedApplyQuery = debounce(() => void applySmartCampusQuery(), 300);
+    document.querySelector('#sc-search-q')?.addEventListener('input', debouncedApplyQuery);
+    document.querySelector('#sc-search-sender')?.addEventListener('input', debouncedApplyQuery);
     document.querySelector('#sc-search-q')?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') void applySmartCampusQuery();
     });
@@ -753,8 +1143,8 @@ function bindRouteEvents(route) {
       void loadSmartCampusMessages();
     });
     toggleSmartCampusScheduleMode();
-    void loadSmartCampusSettings(true);
-    void loadSmartCampusMessages(true);
+    void loadSmartCampusSettings(true).then(() => applySmartCampusToDom());
+    void loadSmartCampusMessages(true).then(() => applySmartCampusToDom());
   }
 }
 
@@ -772,7 +1162,13 @@ function applyRealtimeToOverviewDom() {
   if (displayName) displayName.textContent = `真实姓名：${realtime.user?.real_name || '--'}`;
   if (health) health.textContent = realtime.health?.status || '--';
   if (updatedAt) updatedAt.textContent = realtime.updatedAt || '--';
-  if (loadingNote) loadingNote.textContent = realtime.loading ? '正在刷新…' : '点击按钮可手动刷新';
+  if (loadingNote) {
+    if (realtime.loading) {
+      loadingNote.innerHTML = '<span class="loading-spinner"></span>正在刷新…';
+    } else {
+      loadingNote.textContent = '点击卡片可刷新';
+    }
+  }
   if (errorBox) {
     errorBox.textContent = realtime.error || '';
     errorBox.style.display = realtime.error ? '' : 'none';
@@ -797,8 +1193,15 @@ function handleRouteChange() {
   }
   appState.currentRoute = route;
   updateActiveRouteInDrawer(route);
-  routeView.innerHTML = renderRoute(route);
-  bindRouteEvents(route);
+  
+  // 显示骨架屏
+  showSkeleton(route);
+  
+  // 延迟渲染实际内容，模拟网络加载
+  setTimeout(() => {
+    routeView.innerHTML = renderRoute(route);
+    bindRouteEvents(route);
+  }, 300);
 }
 
 function getSystemThemeMode() {
@@ -841,12 +1244,210 @@ function applyThemeByPreference(preference) {
   applyTheme(preference, preference);
 }
 
+// 默认颜色
+const defaultColors = {
+  primary: '#1e40af',
+  accent: '#0284c7',
+  danger: '#dc2626',
+};
+
+// 获取用户自定义颜色
+function getCustomColors() {
+  const stored = localStorage.getItem(storageKeys.customColors);
+  if (!stored) return defaultColors;
+  try {
+    const colors = JSON.parse(stored);
+    return {
+      primary: colors.primary || defaultColors.primary,
+      accent: colors.accent || defaultColors.accent,
+      danger: colors.danger || defaultColors.danger,
+    };
+  } catch {
+    return defaultColors;
+  }
+}
+
+// 保存用户自定义颜色
+function saveCustomColors(colors) {
+  localStorage.setItem(storageKeys.customColors, JSON.stringify(colors));
+}
+
+// 应用颜色到DOM
+function applyCustomColors(colors) {
+  // 更新CSS变量
+  document.documentElement.style.setProperty('--guet-primary', colors.primary);
+  document.documentElement.style.setProperty('--guet-accent', colors.accent);
+  document.documentElement.style.setProperty('--guet-danger', colors.danger);
+  
+  // 更新颜色选择器的值和背景色
+  if (colorPrimaryInput) {
+    colorPrimaryInput.value = colors.primary;
+    const picker = colorPrimaryInput.closest('.color-picker');
+    if (picker) picker.style.backgroundColor = colors.primary;
+  }
+  if (colorAccentInput) {
+    colorAccentInput.value = colors.accent;
+    const picker = colorAccentInput.closest('.color-picker');
+    if (picker) picker.style.backgroundColor = colors.accent;
+  }
+  if (colorDangerInput) {
+    colorDangerInput.value = colors.danger;
+    const picker = colorDangerInput.closest('.color-picker');
+    if (picker) picker.style.backgroundColor = colors.danger;
+  }
+  
+  // 更新MDUI主题颜色
+  if (window.mdui?.setColorScheme) {
+    const currentMode = document.documentElement.dataset.theme || 'light';
+    window.mdui.setColorScheme(colors.primary);
+  }
+}
+
+// 字体大小相关函数
+function getFontSize() {
+  const stored = localStorage.getItem(storageKeys.fontSize);
+  return stored || 'base';
+}
+
+function saveFontSize(size) {
+  localStorage.setItem(storageKeys.fontSize, size);
+}
+
+function applyFontSize(size) {
+  // 重置所有按钮状态
+  if (fontSizeSmallBtn) fontSizeSmallBtn.setAttribute('variant', 'outlined');
+  if (fontSizeBaseBtn) fontSizeBaseBtn.setAttribute('variant', 'outlined');
+  if (fontSizeLargeBtn) fontSizeLargeBtn.setAttribute('variant', 'outlined');
+  
+  // 设置选中按钮状态
+  switch (size) {
+    case 'sm':
+      if (fontSizeSmallBtn) fontSizeSmallBtn.setAttribute('variant', 'filled');
+      document.documentElement.style.setProperty('--guet-font-size-base', '0.875rem');
+      break;
+    case 'lg':
+      if (fontSizeLargeBtn) fontSizeLargeBtn.setAttribute('variant', 'filled');
+      document.documentElement.style.setProperty('--guet-font-size-base', '1.125rem');
+      break;
+    default:
+      if (fontSizeBaseBtn) fontSizeBaseBtn.setAttribute('variant', 'filled');
+      document.documentElement.style.setProperty('--guet-font-size-base', '1rem');
+      break;
+  }
+}
+
+// 绑定字体大小按钮事件
+function bindFontSizeEvents() {
+  if (fontSizeSmallBtn) {
+    fontSizeSmallBtn.addEventListener('click', () => {
+      applyFontSize('sm');
+      saveFontSize('sm');
+    });
+  }
+  if (fontSizeBaseBtn) {
+    fontSizeBaseBtn.addEventListener('click', () => {
+      applyFontSize('base');
+      saveFontSize('base');
+    });
+  }
+  if (fontSizeLargeBtn) {
+    fontSizeLargeBtn.addEventListener('click', () => {
+      applyFontSize('lg');
+      saveFontSize('lg');
+    });
+  }
+}
+
+// 绑定颜色选择器事件
+function bindColorPickerEvents() {
+  if (colorPrimaryInput) {
+    colorPrimaryInput.addEventListener('input', () => {
+      const colors = getCustomColors();
+      colors.primary = colorPrimaryInput.value;
+      applyCustomColors(colors);
+    });
+  }
+  
+  if (colorAccentInput) {
+    colorAccentInput.addEventListener('input', () => {
+      const colors = getCustomColors();
+      colors.accent = colorAccentInput.value;
+      applyCustomColors(colors);
+    });
+  }
+  
+  if (colorDangerInput) {
+    colorDangerInput.addEventListener('input', () => {
+      const colors = getCustomColors();
+      colors.danger = colorDangerInput.value;
+      applyCustomColors(colors);
+    });
+  }
+}
+
+// 绑定预设颜色事件
+function bindPresetColorEvents() {
+  if (presetColorsContainer) {
+    presetColorsContainer.addEventListener('click', (event) => {
+      const presetColor = event.target.closest('.preset-color');
+      if (presetColor) {
+        const color = presetColor.dataset.color;
+        if (color) {
+          // 将预设颜色应用为主色调
+          const colors = getCustomColors();
+          colors.primary = color;
+          applyCustomColors(colors);
+          
+          // 更新预设颜色的激活状态
+          document.querySelectorAll('.preset-color').forEach(el => {
+            el.classList.remove('active');
+          });
+          presetColor.classList.add('active');
+        }
+      }
+    });
+  }
+}
+
+// 绑定颜色按钮事件
+function bindColorButtonEvents() {
+  if (resetColorsButton) {
+    resetColorsButton.addEventListener('click', () => {
+      applyCustomColors(defaultColors);
+      saveCustomColors(defaultColors);
+    });
+  }
+  
+  if (saveColorsButton) {
+    saveColorsButton.addEventListener('click', () => {
+      const colors = {
+        primary: colorPrimaryInput?.value || defaultColors.primary,
+        accent: colorAccentInput?.value || defaultColors.accent,
+        danger: colorDangerInput?.value || defaultColors.danger,
+      };
+      saveCustomColors(colors);
+      // 可以添加一个保存成功的提示
+    });
+  }
+}
+
+// 初始化颜色功能
+function initColorSystem() {
+  const colors = getCustomColors();
+  applyCustomColors(colors);
+  bindColorPickerEvents();
+  bindPresetColorEvents();
+  bindColorButtonEvents();
+}
+
 function initTheme() {
   applyThemeByPreference(getPreferredThemeMode());
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   mediaQuery.addEventListener('change', (event) => {
     if (getPreferredThemeMode() === 'auto') applyTheme(event.matches ? 'dark' : 'light', 'auto');
   });
+  // 初始化颜色系统
+  initColorSystem();
 }
 
 async function parseJsonSafely(response) {
@@ -1245,7 +1846,13 @@ function applySmartCampusToDom() {
   const listNode = document.querySelector('#smart-campus-list');
   if (statusNode) {
     statusNode.className = `result-card ${sc.error ? 'error' : 'muted'}`;
-    statusNode.textContent = sc.error ? sc.error : (sc.loading ? '正在同步智慧校园通知…' : `最近更新时间：${sc.updatedAt || '--'}`);
+    if (sc.error) {
+      statusNode.textContent = sc.error;
+    } else if (sc.loading) {
+      statusNode.innerHTML = '<span class="loading-spinner"></span>正在同步智慧校园通知…';
+    } else {
+      statusNode.textContent = `最近更新时间：${sc.updatedAt || '--'}`;
+    }
   }
   if (listNode) {
     if (!sc.messages.length) {
@@ -1255,9 +1862,9 @@ function applySmartCampusToDom() {
     listNode.innerHTML = sc.messages
       .map((item) => `
       <article class="timeline-item">
-        <header><strong>${item.sender || '系统通知'}</strong><time>${item.occurred_at_text || item.fetched_at || '--'}</time></header>
-        <div class="timeline-title">${item.title || '(无标题)'}</div>
-        <p>${item.content_text || item.content_html || ''}</p>
+        <header><strong>${escapeHtml(item.sender || '系统通知')}</strong><time>${escapeHtml(item.occurred_at_text || item.fetched_at || '--')}</time></header>
+        <div class="timeline-title">${escapeHtml(item.title || '(无标题)')}</div>
+        <p>${escapeHtml(item.content_text || item.content_html || '')}</p>
       </article>
     `)
       .join('');
@@ -1364,8 +1971,10 @@ async function saveSmartCampusSettings() {
     if (!response.ok) throw new Error(formatApiError(data.detail, `保存失败（${response.status}）`));
     appState.smartCampus.setting = { ...appState.smartCampus.setting, ...data };
     setStatus('采集器设置已保存。', 'success');
+    applySmartCampusToDom();
   } catch (error) {
     setStatus(`保存采集器设置失败：${error.message}`, 'error');
+    applySmartCampusToDom();
   }
 }
 
@@ -1532,6 +2141,27 @@ function toggleAvatarMenu(forceOpen) {
   topAvatarPanel.hidden = !shouldOpen;
 }
 
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+function escapeHtml(unsafe) {
+  return String(unsafe || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function handleLogout() {
   clearLocalAuth();
   setStatus('已登出，可重新登录或切换账号。', 'muted');
@@ -1592,10 +2222,21 @@ send2faCodeButton?.addEventListener('click', sendTwoFactorCode);
 openWeChat2faButton?.addEventListener('click', initiateWeChatQr);
 close2faDialogButton?.addEventListener('click', closeTwoFactorDialog);
 
-initTheme();
+// 初始化主题
+ThemeManager.init();
+
 resetTwoFactorState();
 appState.login.recentAccounts = loadRecentAccounts();
 updateAccountDisplay();
+
+// 初始化颜色
+const customColors = ColorManager.getColors();
+ColorManager.applyColors(customColors);
+ColorManager.bindEvents();
+
+// 初始化字体大小
+FontSizeManager.init();
+
 void restoreSavedSession();
 if (!window.location.hash) navigateTo('/home');
 handleRouteChange();
