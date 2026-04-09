@@ -61,6 +61,16 @@ mdui-layout-main {
   color: var(--guet-primary);
 }
 
+.topbar mdui-tooltip {
+  display: flex;
+  align-items: center;
+}
+
+#theme-toggle {
+  width: 40px;
+  height: 40px;
+}
+
 mdui-navigation-drawer {
   background: var(--guet-surface);
   color: var(--guet-text);
