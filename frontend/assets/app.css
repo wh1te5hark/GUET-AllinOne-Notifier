@@ -2774,6 +2774,16 @@ html[data-theme="dark"] .wechat-qr-overlay {
   gap: 0.7rem;
 }
 
+.avatar-file-row {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.avatar-file-name {
+  font-size: 0.82rem;
+  color: var(--guet-muted);
+}
+
 .api-preview code {
   display: block;
   padding: 0.75rem 0.9rem;

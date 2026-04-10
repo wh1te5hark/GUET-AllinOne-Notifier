@@ -10,6 +10,10 @@ export function createSmartCampusManager({
   applySmartCampusToDom,
   rerenderCollectorsPage,
 }) {
+  function isEnglish() {
+    return (localStorage.getItem('guet_notifier_language') || 'zh') === 'en';
+  }
+
   async function syncSmartCampusProfile({ silent = false } = {}) {
     const token = getToken();
     if (!token) return null;
@@ -159,7 +163,9 @@ export function createSmartCampusManager({
       appState.smartCampus.updatedAt = new Date().toLocaleTimeString();
       if (!silent) setStatus(`已加载 ${appState.smartCampus.messages.length} 条智慧校园通知。`, 'success');
     } catch (error) {
-      appState.smartCampus.error = `读取智慧校园通知失败：${error.message}`;
+      appState.smartCampus.error = isEnglish()
+        ? `Failed to load smart campus notices: ${error.message}`
+        : `读取智慧校园通知失败：${error.message}`;
       if (!silent) setStatus(appState.smartCampus.error, 'error');
     } finally {
       appState.smartCampus.loading = false;
@@ -186,7 +192,9 @@ export function createSmartCampusManager({
       appState.smartCampus.updatedAt = new Date().toLocaleTimeString();
       setStatus(`智慧校园通知同步完成：抓取 ${data.fetched_count}，新增 ${data.saved_count}，标记已读 ${data.marked_read_count || 0}。`, 'success');
     } catch (error) {
-      appState.smartCampus.error = `同步智慧校园通知失败：${error.message}`;
+      appState.smartCampus.error = isEnglish()
+        ? `Smart campus sync failed: ${error.message}`
+        : `同步智慧校园通知失败：${error.message}`;
       setStatus(appState.smartCampus.error, 'error');
     } finally {
       appState.smartCampus.loading = false;

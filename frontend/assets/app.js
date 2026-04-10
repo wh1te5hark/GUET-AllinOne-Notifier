@@ -443,11 +443,13 @@ const uiManager = createUiManager({
 });
 
 function resolveNickname(user) {
-  if (!user) return '未登录';
+  const lang = localStorage.getItem('guet_notifier_language') || 'zh';
+  const notLoggedIn = lang === 'en' ? 'Not signed in' : '未登录';
+  if (!user) return notLoggedIn;
   return String(user.display_name || '').trim()
     || String(user.real_name || '').trim()
     || String(user.student_id || '').trim()
-    || '未登录';
+    || notLoggedIn;
 }
 
 function getRouteFromHash() {
@@ -470,13 +472,14 @@ function updateActiveRouteInDrawer(route) {
 function updateAccountDisplay() {
   const user = appState.currentUser;
   const label = resolveNickname(user);
+  const lang = localStorage.getItem('guet_notifier_language') || 'zh';
   const student = user?.student_id || '--';
   const avatar = user?.avatar_base64 || '';
   if (topAccount) topAccount.textContent = label;
   if (drawerDisplayName) drawerDisplayName.textContent = label;
-  if (drawerAccount) drawerAccount.textContent = `当前账号：${student}`;
+  if (drawerAccount) drawerAccount.textContent = lang === 'en' ? `Current account: ${student}` : `当前账号：${student}`;
   if (drawerUserActions) drawerUserActions.style.display = user ? '' : 'none';
-  if (topAvatarName) topAvatarName.textContent = user ? `${label} (${user.student_id || ''})` : '未登录';
+  if (topAvatarName) topAvatarName.textContent = user ? `${label} (${user.student_id || ''})` : (lang === 'en' ? 'Not signed in' : '未登录');
   if (topAvatarImg && topAvatarFallback) {
     if (avatar) {
       topAvatarImg.src = avatar;
@@ -533,8 +536,67 @@ function applyStatusToPage() {
   statusNode.textContent = appState.lastStatus.message;
 }
 
+function translateStatusMessage(message) {
+  const lang = localStorage.getItem('guet_notifier_language') || 'zh';
+  const text = String(message || '');
+  if (lang !== 'en') return text;
+
+  const restoredMatch = text.match(/^已恢复登录态：(.+)$/);
+  if (restoredMatch) return `Login session restored: ${restoredMatch[1]}`;
+  if (text === '尚未发起登录。') return 'No login request sent yet.';
+  if (text === '概览实时数据已更新。') return 'Overview realtime data refreshed.';
+  if (text.startsWith('已删除历史账号：')) return `Deleted recent account: ${text.replace('已删除历史账号：', '')}`;
+  if (text === '颜色保存成功！') return 'Colors saved successfully.';
+  if (text === '请先登录后再访问概览页。') return 'Please sign in before accessing the overview page.';
+  if (text === '请先登录后再读取当前用户。') return 'Please sign in before loading current user.';
+  if (text.startsWith('登录态失效：')) return `Session expired: ${text.replace(/^登录态失效：/, '').replace('，请重新登录。', '. Please sign in again.')}`;
+  if (text === '登录成功，正在同步当前账号信息…') return 'Login successful. Syncing current account info...';
+  if (text === '请完整填写学号、密码和后端地址。') return 'Please complete student ID, password, and backend URL.';
+  if (text === '正在请求 backend 登录接口，请稍候…') return 'Requesting backend login API, please wait...';
+  if (text === '检测到 CAS 需要二次验证，已弹出验证窗口。') return 'CAS requires 2FA. Verification dialog opened.';
+  if (text.startsWith('自动登录失败：')) return `Auto login failed: ${text.replace('自动登录失败：', '')}`;
+  if (text.startsWith('登录失败：')) return `Login failed: ${text.replace('登录失败：', '')}`;
+  if (text === '请选择要删除的历史账号。') return 'Please select a recent account to delete.';
+  if (text.startsWith('历史账号 ') && text.endsWith(' 不存在。')) return `Recent account ${text.replace(/^历史账号 /, '').replace(/ 不存在。$/, '')} does not exist.`;
+  if (text === '当前没有可清空的历史账号。') return 'There are no recent accounts to clear.';
+  if (text === '已清空全部历史账号。') return 'All recent accounts have been cleared.';
+  if (text === '头像已选择，点击保存后写入数据库。') return 'Avatar selected. Click save to store it.';
+  if (text.startsWith('头像处理失败：')) return `Avatar processing failed: ${text.replace('头像处理失败：', '')}`;
+  if (text === '请先登录后再保存资料。') return 'Please sign in before saving profile.';
+  if (text === '正在保存昵称与头像…') return 'Saving nickname and avatar...';
+  if (text === '昵称与头像保存成功。') return 'Nickname and avatar saved.';
+  if (text.startsWith('保存失败：')) return `Save failed: ${text.replace('保存失败：', '')}`;
+  if (text === '正在读取当前用户信息…') return 'Loading current user info...';
+  if (text.startsWith('当前用户\n')) {
+    return text
+      .replace('当前用户', 'Current User')
+      .replace('学号：', 'Student ID: ')
+      .replace('昵称：', 'Nickname: ')
+      .replace('真实姓名：', 'Real name: ')
+      .replace('未设置', 'Not set')
+      .replace('未采集', 'Not synced');
+  }
+  if (text === '登录态已失效，请重新登录。') return 'Session has expired, please sign in again.';
+  if (text === '已登出，可重新登录或切换账号。') return 'Logged out. You can sign in again or switch accounts.';
+  if (text.startsWith('实时数据获取失败：')) return `Realtime data fetch failed: ${text.replace('实时数据获取失败：', '')}`;
+  if (text === '请先登录后再保存采集器设置。') return 'Please sign in before saving collector settings.';
+  if (text === '采集器设置已加载。') return 'Collector settings loaded.';
+  if (text.startsWith('读取采集器设置失败：')) return `Failed to load collector settings: ${text.replace('读取采集器设置失败：', '')}`;
+  if (text === '采集器设置已保存。') return 'Collector settings saved.';
+  if (text.startsWith('保存采集器设置失败：')) return `Failed to save collector settings: ${text.replace('保存采集器设置失败：', '')}`;
+  if (text.startsWith('已加载 ') && text.endsWith(' 条智慧校园通知。')) return `Loaded ${text.replace('已加载 ', '').replace(' 条智慧校园通知。', '')} smart campus notices.`;
+  if (text.startsWith('读取智慧校园通知失败：')) return `Failed to load smart campus notices: ${text.replace('读取智慧校园通知失败：', '')}`;
+  if (text === '请先登录后再同步采集器。') return 'Please sign in before syncing collector.';
+  if (text.startsWith('智慧校园通知同步完成：')) return `Smart campus sync completed: ${text.replace('智慧校园通知同步完成：', '').replace('抓取 ', 'fetched ').replace('，新增 ', ', saved ').replace('，标记已读 ', ', marked read ').replace('。', '')}.`;
+  if (text.startsWith('同步智慧校园通知失败：')) return `Smart campus sync failed: ${text.replace('同步智慧校园通知失败：', '')}`;
+  if (text.startsWith('已同步真实姓名：')) return `Real name synced: ${text.replace('已同步真实姓名：', '')}`;
+  if (text.startsWith('同步真实姓名失败：')) return `Real name sync failed: ${text.replace('同步真实姓名失败：', '')}`;
+
+  return text;
+}
+
 function setStatus(message, type = 'muted') {
-  appState.lastStatus = { message, type };
+  appState.lastStatus = { message: translateStatusMessage(message), type };
   applyStatusToPage();
 }
 
@@ -723,7 +785,15 @@ function bindRouteEvents(route) {
   if (route === '/overview') {
     queryInRoute('#refresh-overview-btn')?.addEventListener('click', () => fetchOverviewRealtime());
     queryInRoute('#overview-loading-note')?.parentElement?.addEventListener('click', () => fetchOverviewRealtime());
-    queryInRoute('#profile-avatar-file')?.addEventListener('change', onAvatarFileSelected);
+    const avatarInput = queryInRoute('#profile-avatar-file');
+    const avatarTrigger = queryInRoute('#profile-avatar-file-trigger');
+    const avatarName = queryInRoute('#profile-avatar-file-name');
+    avatarTrigger?.addEventListener('click', () => avatarInput?.click());
+    avatarInput?.addEventListener('change', (event) => {
+      void onAvatarFileSelected(event);
+      const file = event.target?.files?.[0];
+      if (avatarName) avatarName.textContent = file?.name || (LanguageManager.getLanguage() === 'en' ? 'No file selected' : '未选择文件');
+    });
     queryInRoute('#save-profile-btn')?.addEventListener('click', saveProfile);
     applyRealtimeToOverviewDom();
     void fetchOverviewRealtime(true);
@@ -765,7 +835,11 @@ function bindRouteEvents(route) {
 }
 
 function applyRealtimeToOverviewDom() {
-  return renderers.applyRealtimeToOverviewDom();
+  const result = renderers.applyRealtimeToOverviewDom();
+  if (typeof LanguageManager !== 'undefined') {
+    LanguageManager.applyLanguage(LanguageManager.getLanguage());
+  }
+  return result;
 }
 
 let routeRenderTimer = null;
@@ -1127,7 +1201,11 @@ async function fetchOverviewRealtime(silent = false) {
 }
 
 function applySmartCampusToDom() {
-  return renderers.applySmartCampusToDom();
+  const result = renderers.applySmartCampusToDom();
+  if (typeof LanguageManager !== 'undefined') {
+    LanguageManager.applyLanguage(LanguageManager.getLanguage());
+  }
+  return result;
 }
 
 async function syncSmartCampusProfile({ silent = false } = {}) {
@@ -1275,6 +1353,83 @@ const LanguageManager = {
       loadProfile: '读取当前用户',
       loginNote: '提示：勾选“自动登录”会自动启用“保存密码”；密码仅在本机加密保存。',
       untouchedStatus: '尚未发起登录。',
+      homeKicker: '控制台主页',
+      homeHeadline: '把分散在各系统里的提醒集中管理',
+      homeDesc: '阶段一已支持 CAS 登录、2FA、会话持久化与消息概览。',
+      homeConnectCas: '连接 CAS',
+      homeViewOverview: '查看概览',
+      homePendingNotice: '待处理通知',
+      homeActiveRules: '活跃规则',
+      homeDeliveryRate: '渠道送达率',
+      recentNotice: '最近通知',
+      overviewStudentId: '当前学号',
+      overviewRealName: '真实姓名',
+      overviewBackendHealth: '后端状态',
+      overviewHealthNote: '来自 /health 实时查询',
+      overviewUpdatedAt: '最后刷新时间',
+      overviewLoading: '正在刷新…',
+      overviewRefreshTip: '点击按钮可手动刷新',
+      overviewLoginPanel: '登录与用户概览',
+      goLogin: '去登录页',
+      refreshCurrentUser: '刷新当前用户',
+      refreshRealtime: '刷新实时数据',
+      currentCookies: '本次登录 Cookies',
+      profilePanel: '昵称与头像（隐私）',
+      profileDesc: '可设置对外显示昵称',
+      profilePlaceholder: '未设置头像',
+      profileNickname: '昵称',
+      saveProfile: '保存昵称与头像',
+      chooseAvatarFile: '选择头像文件',
+      noFileSelected: '未选择文件',
+      noCookieRecords: '当前会话暂无 Cookies 记录。',
+      collectorsTitle: '智慧校园通知采集器',
+      collectorsDesc: '数据源：pcportal 消息中心 receiveBox。同步后会标记已读',
+      collectorsSchedule: '采集时间设置',
+      saveSettings: '保存设置',
+      syncMessages: '同步通知',
+      refreshLocal: '刷新本地记录',
+      syncingMessages: '正在同步智慧校园通知…',
+      latestUpdatedAt: '最近更新时间',
+      noticeList: '通知列表',
+      applyFilter: '应用筛选',
+      reset: '重置',
+      noNoticesHint: '暂无通知，先点击“同步通知”。',
+      noRecentAccounts: '暂无历史账号，登录后将自动记录。',
+      noRecentOptions: '暂无历史账号',
+      rulesTitle: '转发规则',
+      pushersTitle: '推送器',
+      nextSteps: '下一步',
+      doneBackend: '完成后端接口定义与鉴权策略。',
+      fillForms: '补齐增删改查表单和保存逻辑。',
+      addTests: '接入变更日志与测试用例。',
+      triggerCondition: '触发条件',
+      keywordPriority: '关键词 / 优先级',
+      triggerDesc: '支持包含、排除、正则等条件。',
+      msgTemplate: '消息模板',
+      textTemplate: '文本模板',
+      msgTemplateDesc: '主题、正文、变量映射占位。',
+      channelRoute: '渠道路由',
+      multiChannel: '多渠道',
+      channelDesc: '按规则选择推送渠道。',
+      qqBot: 'QQ 机器人',
+      qqBotDesc: '连接地址与鉴权配置。',
+      wxPush: '微信推送',
+      wxPushDesc: 'AppToken 与 UID 管理。',
+      feishu: '飞书',
+      feishuDesc: '签名与路由配置。',
+      deletedRecentPrefix: '已删除历史账号：',
+      twoFaHeadline: 'CAS 二次验证',
+      twoFaHint: 'CAS 需要二次验证，请选择验证方式并完成认证。',
+      twoFaMethodLabel: '验证方式',
+      twoFaSmsMethod: '短信验证码',
+      twoFaWechatMethod: '微信扫码',
+      twoFaCodeLabel: '验证码',
+      twoFaCodeHelper: '收到短信后在此输入验证码',
+      twoFaSendSms: '发送短信验证码',
+      twoFaSubmitCode: '提交验证码',
+      twoFaWechatHint: '点击下方按钮获取微信二维码',
+      twoFaGetWechatQr: '获取微信二维码',
+      twoFaLater: '稍后处理',
     },
     en: {
       htmlLang: 'en',
@@ -1319,6 +1474,83 @@ const LanguageManager = {
       loadProfile: 'Load Current User',
       loginNote: 'Tip: Enabling auto login will also enable password remember; password is encrypted locally.',
       untouchedStatus: 'No login request sent yet.',
+      homeKicker: 'Dashboard',
+      homeHeadline: 'Centralize reminders from scattered campus systems',
+      homeDesc: 'Phase 1 supports CAS login, 2FA, session persistence, and message overview.',
+      homeConnectCas: 'Connect CAS',
+      homeViewOverview: 'View Overview',
+      homePendingNotice: 'Pending Notices',
+      homeActiveRules: 'Active Rules',
+      homeDeliveryRate: 'Delivery Rate',
+      recentNotice: 'Recent Notices',
+      overviewStudentId: 'Student ID',
+      overviewRealName: 'Real Name',
+      overviewBackendHealth: 'Backend Status',
+      overviewHealthNote: 'Live data from /health',
+      overviewUpdatedAt: 'Last Updated',
+      overviewLoading: 'Refreshing...',
+      overviewRefreshTip: 'Click button to refresh',
+      overviewLoginPanel: 'Login & User Overview',
+      goLogin: 'Go to Login',
+      refreshCurrentUser: 'Refresh Current User',
+      refreshRealtime: 'Refresh Realtime',
+      currentCookies: 'Current Login Cookies',
+      profilePanel: 'Nickname & Avatar (Privacy)',
+      profileDesc: 'Set nickname shown to others',
+      profilePlaceholder: 'No Avatar',
+      profileNickname: 'Nickname',
+      saveProfile: 'Save Nickname & Avatar',
+      chooseAvatarFile: 'Choose Avatar File',
+      noFileSelected: 'No file selected',
+      noCookieRecords: 'No cookies recorded in current session.',
+      collectorsTitle: 'Smart Campus Notifier Collector',
+      collectorsDesc: 'Source: pcportal message center receiveBox. Messages are marked read after sync.',
+      collectorsSchedule: 'Schedule Settings',
+      saveSettings: 'Save Settings',
+      syncMessages: 'Sync Messages',
+      refreshLocal: 'Refresh Local',
+      syncingMessages: 'Syncing smart campus messages...',
+      latestUpdatedAt: 'Last updated',
+      noticeList: 'Notice List',
+      applyFilter: 'Apply Filter',
+      reset: 'Reset',
+      noNoticesHint: 'No notices yet, click "Sync Messages" first.',
+      noRecentAccounts: 'No recent account history. It will be recorded after login.',
+      noRecentOptions: 'No recent accounts',
+      rulesTitle: 'Forwarding Rules',
+      pushersTitle: 'Pushers',
+      nextSteps: 'Next Steps',
+      doneBackend: 'Complete backend API definitions and auth strategy.',
+      fillForms: 'Fill CRUD forms and persistence logic.',
+      addTests: 'Add changelog integration and test cases.',
+      triggerCondition: 'Trigger Conditions',
+      keywordPriority: 'Keyword / Priority',
+      triggerDesc: 'Supports include, exclude, and regex conditions.',
+      msgTemplate: 'Message Template',
+      textTemplate: 'Text Template',
+      msgTemplateDesc: 'Subject, body, and variable mapping placeholders.',
+      channelRoute: 'Channel Routing',
+      multiChannel: 'Multi-channel',
+      channelDesc: 'Choose push channels by rule.',
+      qqBot: 'QQ Bot',
+      qqBotDesc: 'Connection URL and auth settings.',
+      wxPush: 'WeChat Push',
+      wxPushDesc: 'Manage AppToken and UID.',
+      feishu: 'Feishu',
+      feishuDesc: 'Signature and routing settings.',
+      deletedRecentPrefix: 'Deleted recent account: ',
+      twoFaHeadline: 'CAS Two-Factor Verification',
+      twoFaHint: 'CAS requires 2FA. Please choose a method and complete verification.',
+      twoFaMethodLabel: 'Verification Method',
+      twoFaSmsMethod: 'SMS Code',
+      twoFaWechatMethod: 'WeChat QR',
+      twoFaCodeLabel: 'Verification Code',
+      twoFaCodeHelper: 'Enter the SMS code you received',
+      twoFaSendSms: 'Send SMS Code',
+      twoFaSubmitCode: 'Submit Code',
+      twoFaWechatHint: 'Click below to get WeChat QR code',
+      twoFaGetWechatQr: 'Get WeChat QR Code',
+      twoFaLater: 'Later',
     },
   },
   
@@ -1329,6 +1561,9 @@ const LanguageManager = {
   setLanguage(lang) {
     const nextLang = this.dictionaries[lang] ? lang : this.defaultLanguage;
     localStorage.setItem(this.storageKey, nextLang);
+    // Re-render current route to make language change immediately visible.
+    routeView.innerHTML = renderRoute(appState.currentRoute);
+    bindRouteEvents(appState.currentRoute);
     this.applyLanguage(nextLang);
   },
   
@@ -1350,6 +1585,11 @@ const LanguageManager = {
       if (!value) return;
       const el = document.querySelector(selector);
       if (el) el.textContent = value;
+    };
+    const setAttr = (selector, attr, value) => {
+      if (!value) return;
+      const el = document.querySelector(selector);
+      if (el) el.setAttribute(attr, value);
     };
 
     setText('.topbar-actions mdui-button[href="#/home"]', dict.topHome);
@@ -1392,6 +1632,122 @@ const LanguageManager = {
     setText('.login-actions mdui-button[type="submit"]', dict.loginButton);
     setText('#load-profile-btn', dict.loadProfile);
     setText('.login-note', dict.loginNote);
+    setText('.recent-account-switches .panel-desc', dict.noRecentAccounts);
+    setText('#recent-account-select mdui-menu-item[value=""]', dict.noRecentOptions);
+    setAttr('#cas-login-form [name="student_id"]', 'label', lang === 'en' ? 'Student ID / Work ID' : '学号 / 工号');
+    setAttr('#cas-login-form [name="password"]', 'label', lang === 'en' ? 'Password' : '密码');
+    setAttr('#cas-login-form [name="api_base"]', 'label', lang === 'en' ? 'Backend API URL' : '后端 API 地址');
+    setAttr('#cas-login-form [name="api_base"]', 'helper', lang === 'en' ? 'Defaults to local backend service' : '默认指向本地后端服务');
+    if (appState.currentRoute === '/home') {
+      setText('.section-kicker', dict.homeKicker);
+      setText('.overview-section .section-head h1', dict.homeHeadline);
+      setText('.overview-section .section-head p', dict.homeDesc);
+      setText('.overview-actions mdui-button[href="#/login"]', dict.homeConnectCas);
+      setText('.overview-actions mdui-button[href="#/overview"]', dict.homeViewOverview);
+      setText('.summary-grid .summary-card:nth-child(1) .summary-label', dict.homePendingNotice);
+      setText('.summary-grid .summary-card:nth-child(2) .summary-label', dict.homeActiveRules);
+      setText('.summary-grid .summary-card:nth-child(3) .summary-label', dict.homeDeliveryRate);
+      setText('.overview-section .panel-card .panel-title', dict.recentNotice);
+    }
+
+    if (appState.currentRoute === '/overview') {
+      setText('.summary-grid .summary-card:nth-child(1) .summary-label', dict.overviewStudentId);
+      const overviewName = document.querySelector('#overview-display-name');
+      if (overviewName) overviewName.textContent = `${dict.overviewRealName}：${appState.realtime.user?.real_name || '--'}`;
+      setText('.summary-grid .summary-card:nth-child(2) .summary-label', dict.overviewBackendHealth);
+      setText('.summary-grid .summary-card:nth-child(2) .summary-note', dict.overviewHealthNote);
+      setText('.summary-grid .summary-card:nth-child(3) .summary-label', dict.overviewUpdatedAt);
+      const overviewLoading = document.querySelector('#overview-loading-note');
+      if (overviewLoading) overviewLoading.textContent = appState.realtime.loading ? dict.overviewLoading : dict.overviewRefreshTip;
+      setText('.main-grid .panel-card:nth-child(1) .panel-title', dict.overviewLoginPanel);
+      setText('.main-grid .panel-card:nth-child(1) .overview-actions mdui-button[href="#/login"]', dict.goLogin);
+      setText('#load-profile-btn', dict.refreshCurrentUser);
+      setText('#refresh-overview-btn', dict.refreshRealtime);
+      setText('.main-grid .panel-card:nth-child(2) .panel-title', dict.currentCookies);
+      setText('#profile-card .panel-title', dict.profilePanel);
+      setText('#profile-card .panel-desc', dict.profileDesc);
+      setText('#profile-avatar-placeholder', dict.profilePlaceholder);
+      setAttr('#profile-display-name', 'label', dict.profileNickname);
+      setText('#save-profile-btn', dict.saveProfile);
+    setText('#profile-avatar-file-trigger', dict.chooseAvatarFile);
+    const avatarInputEl = document.querySelector('#profile-avatar-file');
+    const avatarNameEl = document.querySelector('#profile-avatar-file-name');
+    if (avatarNameEl && !avatarInputEl?.files?.[0]) avatarNameEl.textContent = dict.noFileSelected;
+      setText('.main-grid .panel-card:last-child .panel-title', dict.recentNotice);
+    }
+    setText('.lower-grid .panel-card:nth-child(1) .panel-title', dict.collectorsTitle);
+    setText('.lower-grid .panel-card:nth-child(1) .panel-desc', dict.collectorsDesc);
+    setText('.lower-grid .panel-card:nth-child(1) .panel-title[style*="font-size:1rem"]', dict.collectorsSchedule);
+    setText('#save-smart-campus-settings-btn', dict.saveSettings);
+    setText('#sync-smart-campus-btn', dict.syncMessages);
+    setText('#refresh-smart-campus-btn', dict.refreshLocal);
+    const smartStatus = document.querySelector('#smart-campus-status');
+    if (smartStatus && !appState.smartCampus.error) {
+      smartStatus.textContent = appState.smartCampus.loading
+        ? dict.syncingMessages
+        : `${dict.latestUpdatedAt}：${appState.smartCampus.updatedAt || '--'}`;
+    }
+    setText('.lower-grid .panel-card:nth-child(2) .panel-title', dict.noticeList);
+    setText('#apply-smart-campus-query-btn', dict.applyFilter);
+    setText('#reset-smart-campus-query-btn', dict.reset);
+    setAttr('#sc-schedule-mode', 'label', lang === 'en' ? 'Mode' : '调度模式');
+    setAttr('#sc-visual-mode', 'label', lang === 'en' ? 'Visual Frequency' : '可视化频率');
+    setAttr('#sc-interval-minutes', 'label', lang === 'en' ? 'Interval Minutes' : '间隔分钟');
+    setAttr('#sc-daily-time', 'label', lang === 'en' ? 'Daily Time' : '每日时间');
+    setAttr('#sc-cron-expr', 'label', lang === 'en' ? 'Cron Expression' : 'Cron 表达式');
+    setAttr('#sc-cron-expr', 'helper', lang === 'en' ? 'Example: */30 * * * *' : '示例：*/30 * * * *');
+    setAttr('#sc-search-q', 'label', lang === 'en' ? 'Keyword' : '关键词');
+    setAttr('#sc-search-sender', 'label', lang === 'en' ? 'Sender' : '发送方');
+    setAttr('#sc-read-state', 'label', lang === 'en' ? 'Read Filter' : '已读筛选');
+    setAttr('#sc-sort-by', 'label', lang === 'en' ? 'Sort Field' : '排序字段');
+    setAttr('#sc-sort-dir', 'label', lang === 'en' ? 'Order' : '顺序');
+    setAttr('#two-factor-dialog', 'headline', dict.twoFaHeadline);
+    setText('#two-factor-dialog .two-factor-hint', dict.twoFaHint);
+    setAttr('#two-factor-method-field', 'label', dict.twoFaMethodLabel);
+    setText('#two-factor-method-field mdui-menu-item[value="sms_code"]', dict.twoFaSmsMethod);
+    setText('#two-factor-method-field mdui-menu-item[value="wechat_qr"]', dict.twoFaWechatMethod);
+    setAttr('#two-factor-code-field', 'label', dict.twoFaCodeLabel);
+    setAttr('#two-factor-code-field', 'helper', dict.twoFaCodeHelper);
+    setText('#send-2fa-code-btn', dict.twoFaSendSms);
+    setText('#verify-2fa-btn', dict.twoFaSubmitCode);
+    setText('.wechat-qr-hint', dict.twoFaWechatHint);
+    setText('#open-wechat-2fa-btn', dict.twoFaGetWechatQr);
+    setText('#close-2fa-dialog-btn', dict.twoFaLater);
+    if (!appState.smartCampus.messages?.length) {
+      const emptyNotice = document.querySelector('#smart-campus-list .panel-desc');
+      if (emptyNotice) emptyNotice.textContent = dict.noNoticesHint;
+    }
+    if (appState.currentRoute === '/rules') {
+      setText('.lower-grid .panel-card:nth-child(1) .panel-title', dict.triggerCondition);
+      setText('.lower-grid .panel-card:nth-child(1) .simple-row strong', dict.keywordPriority);
+      setText('.lower-grid .panel-card:nth-child(1) .simple-row p', dict.triggerDesc);
+      setText('.lower-grid .panel-card:nth-child(2) .panel-title', dict.msgTemplate);
+      setText('.lower-grid .panel-card:nth-child(2) .simple-row strong', dict.textTemplate);
+      setText('.lower-grid .panel-card:nth-child(2) .simple-row p', dict.msgTemplateDesc);
+      setText('.lower-grid .panel-card:nth-child(3) .panel-title', dict.channelRoute);
+      setText('.lower-grid .panel-card:nth-child(3) .simple-row strong', dict.multiChannel);
+      setText('.lower-grid .panel-card:nth-child(3) .simple-row p', dict.channelDesc);
+      setText('.lower-grid .panel-card:nth-child(4) .panel-title', `${dict.rulesTitle} - ${dict.nextSteps}`);
+      setText('.lower-grid .panel-card:nth-child(4) .steps li:nth-child(1)', dict.doneBackend);
+      setText('.lower-grid .panel-card:nth-child(4) .steps li:nth-child(2)', dict.fillForms);
+      setText('.lower-grid .panel-card:nth-child(4) .steps li:nth-child(3)', dict.addTests);
+    }
+    if (appState.currentRoute === '/pushers') {
+      setText('.lower-grid .panel-card:nth-child(1) .panel-title', 'OneBot');
+      setText('.lower-grid .panel-card:nth-child(1) .simple-row strong', dict.qqBot);
+      setText('.lower-grid .panel-card:nth-child(1) .simple-row p', dict.qqBotDesc);
+      setText('.lower-grid .panel-card:nth-child(2) .panel-title', 'WxPusher');
+      setText('.lower-grid .panel-card:nth-child(2) .simple-row strong', dict.wxPush);
+      setText('.lower-grid .panel-card:nth-child(2) .simple-row p', dict.wxPushDesc);
+      setText('.lower-grid .panel-card:nth-child(3) .panel-title', dict.feishu);
+      setText('.lower-grid .panel-card:nth-child(3) .simple-row strong', 'Webhook Bot');
+      setText('.lower-grid .panel-card:nth-child(3) .simple-row p', dict.feishuDesc);
+      setText('.lower-grid .panel-card:nth-child(4) .panel-title', `${dict.pushersTitle} - ${dict.nextSteps}`);
+      setText('.lower-grid .panel-card:nth-child(4) .steps li:nth-child(1)', dict.doneBackend);
+      setText('.lower-grid .panel-card:nth-child(4) .steps li:nth-child(2)', dict.fillForms);
+      setText('.lower-grid .panel-card:nth-child(4) .steps li:nth-child(3)', dict.addTests);
+    }
+
     if (appState.lastStatus?.message === this.dictionaries.zh.untouchedStatus
       || appState.lastStatus?.message === this.dictionaries.en.untouchedStatus) {
       setStatus(dict.untouchedStatus, 'muted');

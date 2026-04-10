@@ -103,6 +103,11 @@ export function createRenderers({
   }
 
   function renderOverview() {
+    const lang = localStorage.getItem('guet_notifier_language') || 'zh';
+    const realNameLabel = lang === 'en' ? 'Real Name' : '真实姓名';
+    const loadingText = lang === 'en' ? 'Refreshing...' : '正在刷新…';
+    const refreshHint = lang === 'en' ? 'Click button to refresh' : '点击按钮可手动刷新';
+    const cookieEmpty = lang === 'en' ? 'No cookies recorded in current session.' : '当前会话暂无 Cookies 记录。';
     const realtime = appState.realtime;
     const userStudentId = realtime.user?.student_id || '--';
     const userRealName = realtime.user?.real_name || '--';
@@ -113,14 +118,14 @@ export function createRenderers({
       ? formatCookies(appState.lastLoginResult.cas_cookies)
       : appState.storedCookies?.length
         ? formatCookies(appState.storedCookies)
-        : '当前会话暂无 Cookies 记录。';
+        : cookieEmpty;
     return `
     <section>
       <div class="summary-grid">
         <mdui-card class="summary-card">
           <div class="summary-label">当前学号</div>
           <div class="summary-value" id="overview-student-id">${userStudentId}</div>
-          <div class="summary-note" id="overview-display-name">真实姓名：${userRealName}</div>
+          <div class="summary-note" id="overview-display-name">${realNameLabel}: ${userRealName}</div>
         </mdui-card>
         <mdui-card class="summary-card">
           <div class="summary-label">后端状态</div>
@@ -130,7 +135,7 @@ export function createRenderers({
         <mdui-card class="summary-card">
           <div class="summary-label">最后刷新时间</div>
           <div class="summary-value" id="overview-updated-at">${updatedAt}</div>
-          <div class="summary-note" id="overview-loading-note">${realtime.loading ? '正在刷新…' : '点击按钮可手动刷新'}</div>
+          <div class="summary-note" id="overview-loading-note">${realtime.loading ? loadingText : refreshHint}</div>
         </mdui-card>
       </div>
       <section class="main-grid">
@@ -158,7 +163,11 @@ export function createRenderers({
           </div>
           <div class="profile-fields">
             <mdui-text-field id="profile-display-name" label="昵称" variant="outlined" value="${realtime.user?.display_name || ''}"></mdui-text-field>
-            <input id="profile-avatar-file" type="file" accept="image/*" />
+            <div class="avatar-file-row">
+              <input id="profile-avatar-file" type="file" accept="image/*" hidden />
+              <mdui-button id="profile-avatar-file-trigger" variant="outlined">选择头像文件</mdui-button>
+              <span id="profile-avatar-file-name" class="avatar-file-name">未选择文件</span>
+            </div>
             <mdui-button id="save-profile-btn" variant="filled">保存昵称与头像</mdui-button>
           </div>
         </div>
@@ -173,6 +182,15 @@ export function createRenderers({
   }
 
   function renderCollectors() {
+    const lang = localStorage.getItem('guet_notifier_language') || 'zh';
+    const isEn = lang === 'en';
+    const senderFallback = isEn ? 'System Notice' : '系统通知';
+    const untitled = isEn ? '(Untitled)' : '(无标题)';
+    const readText = isEn ? 'Read' : '已读';
+    const unreadText = isEn ? 'Unread' : '未读';
+    const statusLabel = isEn ? 'Status' : '状态';
+    const emptyHint = isEn ? 'No notices yet, click "Sync Messages" first.' : '暂无通知，先点击“同步通知”。';
+
     const sc = appState.smartCampus;
     const s = sc.setting || {};
     const q = sc.query || {};
@@ -180,11 +198,11 @@ export function createRenderers({
       .map((item) => `
       <article class="timeline-item">
         <header>
-          <strong>${item.sender || '系统通知'}</strong>
+          <strong>${item.sender || senderFallback}</strong>
           <time>${item.occurred_at_text || item.fetched_at || '--'}</time>
         </header>
-        <div class="timeline-title">${item.title || '(无标题)'}</div>
-        <p style="margin:0.25rem 0;color:var(--guet-muted);font-size:0.85rem;">状态：${item.is_marked_read ? '已读' : '未读'} | ID：${item.external_id || '--'}</p>
+        <div class="timeline-title">${item.title || untitled}</div>
+        <p style="margin:0.25rem 0;color:var(--guet-muted);font-size:0.85rem;">${statusLabel}: ${item.is_marked_read ? readText : unreadText} | ID: ${item.external_id || '--'}</p>
         <p>${item.content_text || item.content_html || ''}</p>
       </article>
     `)
@@ -247,7 +265,7 @@ export function createRenderers({
           <mdui-button type="button" variant="outlined" id="apply-smart-campus-query-btn">应用筛选</mdui-button>
           <mdui-button type="button" variant="text" id="reset-smart-campus-query-btn">重置</mdui-button>
         </div>
-        <div id="smart-campus-list" class="timeline">${rows || '<p class="panel-desc">暂无通知，先点击“同步通知”。</p>'}</div>
+        <div id="smart-campus-list" class="timeline">${rows || `<p class="panel-desc">${emptyHint}</p>`}</div>
       </mdui-card>
     </section>
   `;
@@ -304,6 +322,11 @@ export function createRenderers({
   }
 
   function applyRealtimeToOverviewDom() {
+    const lang = localStorage.getItem('guet_notifier_language') || 'zh';
+    const realNameLabel = lang === 'en' ? 'Real Name' : '真实姓名';
+    const loadingText = lang === 'en' ? 'Refreshing...' : '正在刷新…';
+    const refreshHint = lang === 'en' ? 'Click button to refresh' : '点击按钮可手动刷新';
+    const cookieEmpty = lang === 'en' ? 'No cookies recorded in current session.' : '当前会话暂无 Cookies 记录。';
     if (appState.currentRoute !== '/overview') return;
     const realtime = appState.realtime;
     const student = document.querySelector('#overview-student-id');
@@ -314,10 +337,10 @@ export function createRenderers({
     const errorBox = document.querySelector('#overview-error');
     const cookieBox = document.querySelector('#overview-cookie-box');
     if (student) student.textContent = realtime.user?.student_id || '--';
-    if (displayName) displayName.textContent = `真实姓名：${realtime.user?.real_name || '--'}`;
+    if (displayName) displayName.textContent = `${realNameLabel}: ${realtime.user?.real_name || '--'}`;
     if (health) health.textContent = realtime.health?.status || '--';
     if (updatedAt) updatedAt.textContent = realtime.updatedAt || '--';
-    if (loadingNote) loadingNote.textContent = realtime.loading ? '正在刷新…' : '点击按钮可手动刷新';
+    if (loadingNote) loadingNote.textContent = realtime.loading ? loadingText : refreshHint;
     if (errorBox) {
       errorBox.textContent = realtime.error || '';
       errorBox.style.display = realtime.error ? '' : 'none';
@@ -327,31 +350,38 @@ export function createRenderers({
         ? formatCookies(appState.lastLoginResult.cas_cookies)
         : appState.storedCookies?.length
           ? formatCookies(appState.storedCookies)
-          : '当前会话暂无 Cookies 记录。';
+          : cookieEmpty;
       cookieBox.textContent = lines;
     }
   }
 
   function applySmartCampusToDom() {
+    const lang = localStorage.getItem('guet_notifier_language') || 'zh';
+    const isEn = lang === 'en';
+    const syncingText = isEn ? 'Syncing smart campus messages...' : '正在同步智慧校园通知…';
+    const lastUpdatedLabel = isEn ? 'Last updated' : '最近更新时间';
+    const senderFallback = isEn ? 'System Notice' : '系统通知';
+    const untitled = isEn ? '(Untitled)' : '(无标题)';
+    const emptyHint = isEn ? 'No notices yet, click "Sync Messages" first.' : '暂无通知，先点击“同步通知”。';
     if (appState.currentRoute !== '/collectors') return;
     const sc = appState.smartCampus;
     const statusNode = document.querySelector('#smart-campus-status');
     const listNode = document.querySelector('#smart-campus-list');
     if (statusNode) {
       statusNode.className = `result-card ${sc.error ? 'error' : 'muted'}`;
-      statusNode.textContent = sc.error ? sc.error : (sc.loading ? '正在同步智慧校园通知…' : `最近更新时间：${sc.updatedAt || '--'}`);
+      statusNode.textContent = sc.error ? sc.error : (sc.loading ? syncingText : `${lastUpdatedLabel}: ${sc.updatedAt || '--'}`);
     }
     if (listNode) {
       if (!sc.messages.length) {
-        listNode.innerHTML = '<p class="panel-desc">暂无通知，先点击“同步通知”。</p>';
+        listNode.innerHTML = `<p class="panel-desc">${emptyHint}</p>`;
         return;
       }
       listNode.innerHTML = sc.messages
         .map(
           (item) => `
       <article class="timeline-item">
-        <header><strong>${item.sender || '系统通知'}</strong><time>${item.occurred_at_text || item.fetched_at || '--'}</time></header>
-        <div class="timeline-title">${item.title || '(无标题)'}</div>
+        <header><strong>${item.sender || senderFallback}</strong><time>${item.occurred_at_text || item.fetched_at || '--'}</time></header>
+        <div class="timeline-title">${item.title || untitled}</div>
         <p>${item.content_text || item.content_html || ''}</p>
       </article>
     `,

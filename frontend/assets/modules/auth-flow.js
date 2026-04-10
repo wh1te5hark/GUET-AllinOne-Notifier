@@ -18,9 +18,41 @@ export function createAuthFlow({
   let wechatPollTimer = null;
   let pendingLoginContext = null;
 
+  function getLang() {
+    return localStorage.getItem('guet_notifier_language') || 'zh';
+  }
+
+  function translate2faMessage(message) {
+    const text = String(message || '');
+    if (getLang() !== 'en') return text;
+
+    if (text === '请先登录。') return 'Please sign in first.';
+    if (text === '请先输入验证码。') return 'Please enter the verification code.';
+    if (text === '正在提交验证码…') return 'Submitting verification code...';
+    if (text === '不支持短信验证码。') return 'SMS verification is not supported.';
+    if (text === '正在发送短信验证码…') return 'Sending SMS verification code...';
+    if (text === '验证码已发送。' || text === '验证码已发送至手机') return 'Verification code has been sent.';
+    if (text.includes('验证码已发送')) return 'Verification code has been sent.';
+    if (text === '不支持微信扫码。') return 'WeChat QR verification is not supported.';
+    if (text === '正在获取微信二维码…') return 'Fetching WeChat QR code...';
+    if (text === '请使用微信扫描下方二维码。') return 'Please scan the QR code below with WeChat.';
+    if (text === '已扫码，请在手机上确认。') return 'Scanned. Please confirm on your phone.';
+    if (text === '二维码已过期，请重新获取。') return 'QR code expired. Please fetch a new one.';
+    if (text === '已取消，可重新获取二维码。') return 'Cancelled. You can fetch a new QR code.';
+    if (text === '未知状态') return 'Unknown status';
+    if (text === '已扫码，请确认') return 'Scanned, please confirm';
+    if (text.startsWith('验证失败：')) return `Verification failed: ${text.replace('验证失败：', '')}`;
+    if (text.startsWith('发送失败：')) return `Send failed: ${text.replace('发送失败：', '')}`;
+    if (text.startsWith('获取二维码失败：')) return `Failed to fetch QR code: ${text.replace('获取二维码失败：', '')}`;
+    if (text.startsWith('轮询失败：')) return `Polling failed: ${text.replace('轮询失败：', '')}`;
+    if (text.startsWith('轮询异常：')) return `Polling error: ${text.replace('轮询异常：', '')}`;
+
+    return text;
+  }
+
   function set2faStatus(message, type = 'info') {
     if (!elements.twoFactorStatusEl) return;
-    elements.twoFactorStatusEl.textContent = message;
+    elements.twoFactorStatusEl.textContent = translate2faMessage(message);
     elements.twoFactorStatusEl.className = `two-factor-status visible ${type}`;
   }
 
@@ -308,7 +340,7 @@ export function createAuthFlow({
       if (st === 'scanned') {
         set2faStatus('已扫码，请在手机上确认。', 'info');
         if (elements.wechatQrOverlay) {
-          elements.wechatQrOverlay.textContent = '已扫码，请确认';
+          elements.wechatQrOverlay.textContent = translate2faMessage('已扫码，请确认');
           elements.wechatQrOverlay.style.display = 'flex';
         }
         wechatPollTimer = setTimeout(() => void pollWechatStatus(), 1500);
