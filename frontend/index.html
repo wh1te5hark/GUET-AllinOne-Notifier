@@ -8,9 +8,9 @@
       name="description"
       content="桂电消息统一采集与推送平台，聚合教务、畅课、电费、水费与校园卡等通知。"
     />
-    <link rel="stylesheet" href="/static/assets/vendor/fonts/material-fonts.css" />
-    <link rel="stylesheet" href="/static/assets/vendor/mdui/mdui.css" />
-    <link rel="stylesheet" href="/static/assets/app.css" />
+    <link rel="stylesheet" href="./assets/vendor/fonts/material-fonts.css" />
+    <link rel="stylesheet" href="./assets/vendor/mdui/mdui.css" />
+    <link rel="stylesheet" href="./assets/app.css" />
   </head>
   <body>
     <mdui-layout>
@@ -102,8 +102,8 @@
               </div>
             </div>
             
-            <!-- 色彩设置 -->
-            <div class="drawer-color-panel">
+            <!-- 自定义颜色有故障喵 -->
+            <div class="drawer-color-panel" style="display: none;">
               <div class="drawer-color-title">自定义颜色</div>
               <div class="color-picker-group">
                 <div class="color-picker-item">
@@ -132,13 +132,13 @@
                 <div class="preset-color" data-color="#059669" style="background-color: #059669;"></div>
                 <div class="preset-color" data-color="#d97706" style="background-color: #d97706;"></div>
                 <div class="preset-color" data-color="#b91c1c" style="background-color: #b91c1c;"></div>
-                <div class="preset-color" data-color="#7c3aed" style="background-color: #7c3aed;"></div>
+                <div class="preset-color" data-color="#0f766e" style="background-color: #0f766e;"></div>
                 <div class="preset-color" data-color="#1e3a8a" style="background-color: #1e3a8a;"></div>
                 <div class="preset-color" data-color="#0c4a6e" style="background-color: #0c4a6e;"></div>
                 <div class="preset-color" data-color="#065f46" style="background-color: #065f46;"></div>
                 <div class="preset-color" data-color="#92400e" style="background-color: #92400e;"></div>
                 <div class="preset-color" data-color="#7f1d1d" style="background-color: #7f1d1d;"></div>
-                <div class="preset-color" data-color="#5b21b6" style="background-color: #5b21b6;"></div>
+                <div class="preset-color" data-color="#155e75" style="background-color: #155e75;"></div>
               </div>
               <div class="color-actions">
                 <mdui-button id="reset-colors-btn" variant="outlined" full-width>重置颜色</mdui-button>
@@ -186,10 +186,10 @@
           <mdui-button type="button" variant="tonal" id="open-wechat-2fa-btn" full-width>获取微信二维码</mdui-button>
         </div>
       </div>
-      <mdui-button slot="action" variant="text" id="close-2fa-dialog-btn">稍后处理</mdui-button>
+      <mdui-button slot="action" variant="text" id="close-2fa-dialog-btn">取消</mdui-button>
     </mdui-dialog>
 
-    <script type="module" src="/static/assets/vendor/mdui/mdui.global.js"></script>
-    <script type="module" src="/static/assets/app.js"></script>
+    <script type="module" src="./assets/vendor/mdui/mdui.global.js"></script>
+    <script type="module" src="./assets/app.js"></script>
   </body>
 </html>

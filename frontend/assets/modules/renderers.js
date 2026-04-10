@@ -3,7 +3,6 @@ export function createRenderers({
   timelineData,
   storageKeys,
   formatCookies,
-  loginAccountManager,
 }) {
   function renderTimeline(containerId) {
     const container = document.querySelector(`#${containerId}`);
@@ -50,17 +49,11 @@ export function createRenderers({
 
   function renderLogin() {
     const apiBase = localStorage.getItem(storageKeys.apiBase) || 'http://127.0.0.1:8000';
-    const selectedRecent = loginAccountManager.getPreferredRecentAccountId();
     return `
     <section class="login-page">
       <mdui-card class="panel-card login-card">
         <div class="panel-title">账号登录</div>
         <p class="panel-desc">使用桂电统一身份认证账号（智慧校园账号）登录，登录成功后自动同步当前用户信息。</p>
-        <div class="login-page-tips">
-          <span class="login-tip-chip">支持 2FA 验证</span>
-          <span class="login-tip-chip">支持历史账号快速切换</span>
-          <span class="login-tip-chip">支持自动登录</span>
-        </div>
         <form id="cas-login-form" class="login-form">
           <mdui-text-field name="student_id" label="学号 / 工号" variant="outlined" required autocomplete="username"></mdui-text-field>
           <mdui-text-field name="password" type="password" toggle-password label="密码" variant="outlined" required autocomplete="current-password"></mdui-text-field>
@@ -68,16 +61,6 @@ export function createRenderers({
             <summary>高级配置（一般无需修改）</summary>
             <mdui-text-field name="api_base" label="后端 API 地址" variant="outlined" value="${apiBase}" helper="默认指向本地后端服务"></mdui-text-field>
           </details>
-          <mdui-select id="recent-account-select" label="最近登录账号" variant="outlined" value="${selectedRecent}">
-            ${loginAccountManager.renderRecentAccountOptions()}
-          </mdui-select>
-          <div class="recent-account-tools">
-            <button type="button" class="recent-account-tool-btn" id="delete-recent-account-btn">删除当前历史账号</button>
-            <button type="button" class="recent-account-tool-btn danger" id="clear-recent-accounts-btn">清空全部历史账号</button>
-          </div>
-          <div class="recent-account-switches" id="recent-account-switches">
-            ${loginAccountManager.renderRecentAccountQuickSwitch()}
-          </div>
           <div class="login-preferences">
             <label class="login-pref-item">
               <input id="remember-password" type="checkbox" />
@@ -92,10 +75,20 @@ export function createRenderers({
             <mdui-button type="submit" variant="filled">登录</mdui-button>
             <mdui-button type="button" variant="text" id="load-profile-btn">读取当前用户</mdui-button>
           </div>
+          <details class="cookie-login-details">
+            <summary>通过 Cookies 登录（点击展开）</summary>
+            <div class="cookie-login-block">
+              <div class="panel-desc">（格式：name=value; name2=value2）。</div>
+              <textarea
+                id="cookie-login-text"
+                class="cookie-login-textarea"
+                rows="3"
+                placeholder="示例：CASTGC=...; JSESSIONID=..."
+              ></textarea>
+              <mdui-button type="button" variant="outlined" id="cookie-login-btn">通过 Cookies 登录</mdui-button>
+            </div>
+          </details>
         </form>
-        <div class="login-note">
-          <strong>提示：</strong>勾选“自动登录”会自动启用“保存密码”；密码仅在本机加密保存。
-        </div>
         <div id="login-status" class="result-card muted">尚未发起登录。</div>
       </mdui-card>
     </section>
@@ -106,7 +99,7 @@ export function createRenderers({
     const lang = localStorage.getItem('guet_notifier_language') || 'zh';
     const realNameLabel = lang === 'en' ? 'Real Name' : '真实姓名';
     const loadingText = lang === 'en' ? 'Refreshing...' : '正在刷新…';
-    const refreshHint = lang === 'en' ? 'Click button to refresh' : '点击按钮可手动刷新';
+    const refreshHint = lang === 'en' ? 'Click button to refresh' : '点击此处可手动刷新';
     const cookieEmpty = lang === 'en' ? 'No cookies recorded in current session.' : '当前会话暂无 Cookies 记录。';
     const realtime = appState.realtime;
     const userStudentId = realtime.user?.student_id || '--';
@@ -151,7 +144,13 @@ export function createRenderers({
       </mdui-card>
       <mdui-card class="panel-card">
         <div class="panel-title">本次登录 Cookies</div>
-        <div id="overview-cookie-box" class="result-card muted">${cookieLines}</div>
+        <div class="overview-cookie-tools">
+          <mdui-button type="button" variant="outlined" id="copy-cookies-btn">复制 Cookies</mdui-button>
+        </div>
+        <details class="overview-cookie-details">
+          <summary>点击展开</summary>
+          <pre id="overview-cookie-box" class="result-card muted cookie-pre">${cookieLines}</pre>
+        </details>
       </mdui-card>
       <mdui-card class="panel-card" id="profile-card" style="grid-column:1 / -1">
         <div class="panel-title">昵称与头像（隐私）</div>
@@ -325,7 +324,7 @@ export function createRenderers({
     const lang = localStorage.getItem('guet_notifier_language') || 'zh';
     const realNameLabel = lang === 'en' ? 'Real Name' : '真实姓名';
     const loadingText = lang === 'en' ? 'Refreshing...' : '正在刷新…';
-    const refreshHint = lang === 'en' ? 'Click button to refresh' : '点击按钮可手动刷新';
+    const refreshHint = lang === 'en' ? 'Click button to refresh' : '点击此处可手动刷新';
     const cookieEmpty = lang === 'en' ? 'No cookies recorded in current session.' : '当前会话暂无 Cookies 记录。';
     if (appState.currentRoute !== '/overview') return;
     const realtime = appState.realtime;

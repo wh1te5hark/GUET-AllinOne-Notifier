@@ -111,11 +111,14 @@ export function createAuthFlow({
     setStatus('登录成功，正在同步当前账号信息…', 'success');
     closeTwoFactorDialog();
     resetTwoFactorState();
-    void syncCurrentUser({ silent: true }).then((user) => {
-      void loginAccountManager.persistLoginContext(pendingLoginContext, user);
-    });
-    void syncSmartCampusProfile({ silent: true });
     navigateTo('/overview');
+    void (async () => {
+      const user = await syncCurrentUser({ silent: true });
+      void loginAccountManager.persistLoginContext(pendingLoginContext, user);
+      await syncSmartCampusProfile({ silent: true });
+      if (user) setStatus('登录成功，当前账号信息同步完毕。', 'success');
+      else setStatus('登录成功，但账号信息同步失败，请手动刷新。', 'error');
+    })();
   }
 
   async function submitLoginWithPayload(payload, options = {}) {
@@ -201,47 +204,46 @@ export function createAuthFlow({
   }
 
   async function initLoginEnhancements() {
-    const select = document.querySelector('#recent-account-select');
     const rememberField = document.querySelector('#remember-password');
     const autoField = document.querySelector('#auto-login');
-    const deleteCurrentButton = document.querySelector('#delete-recent-account-btn');
-    const clearAllButton = document.querySelector('#clear-recent-accounts-btn');
-    const preferredId = loginAccountManager.getPreferredRecentAccountId();
-    if (select) {
-      select.addEventListener('change', () => {
-        const sid = select.value || '';
-        if (sid) void loginAccountManager.fillLoginFormByAccount(sid);
-      });
-    }
-    document.querySelectorAll('.recent-account-btn').forEach((button) => {
-      button.addEventListener('click', () => {
-        const sid = button.getAttribute('data-student-id');
-        if (!sid) return;
-        if (select) select.value = sid;
-        void loginAccountManager.fillLoginFormByAccount(sid);
-      });
-    });
     rememberField?.addEventListener('change', () => {
       if (!rememberField.checked && autoField) autoField.checked = false;
     });
     autoField?.addEventListener('change', () => {
       if (autoField.checked && rememberField) rememberField.checked = true;
     });
-    deleteCurrentButton?.addEventListener('click', () => {
-      const sid = (select?.value || document.querySelector('#cas-login-form [name="student_id"]')?.value || '').trim();
-      if (!sid) return setStatus('请选择要删除的历史账号。', 'error');
-      if (!loginAccountManager.removeRecentAccountById(sid)) return setStatus(`历史账号 ${sid} 不存在。`, 'error');
-      setStatus(`已删除历史账号：${sid}`, 'success');
-      loginAccountManager.rerenderLoginPage();
-    });
-    clearAllButton?.addEventListener('click', () => {
-      if (!appState.login.recentAccounts.length) return setStatus('当前没有可清空的历史账号。', 'muted');
-      loginAccountManager.clearAllRecentAccounts();
-      setStatus('已清空全部历史账号。', 'success');
-      loginAccountManager.rerenderLoginPage();
-    });
-    if (preferredId) await loginAccountManager.fillLoginFormByAccount(preferredId);
     await tryAutoLoginOnLoginPage();
+  }
+
+  async function handleCookieLogin() {
+    const cookieText = String(document.querySelector('#cookie-login-text')?.value || '').trim();
+    const apiBase = getApiBase();
+    if (!cookieText) {
+      setStatus('请先填写 Cookies。', 'error');
+      return;
+    }
+    pendingLoginContext = null;
+    setStatus('正在通过 Cookies 登录…', 'muted');
+    try {
+      const response = await fetch(`${apiBase}/api/v1/auth/cas/cookie-login`, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cookie_text: cookieText }),
+      });
+      const data = await parseJsonSafely(response);
+      if (!response.ok) throw new Error(formatApiError(data.detail, `登录失败（${response.status}）`));
+      pendingLoginContext = {
+        student_id: data.student_id || '',
+        password: '',
+        api_base: apiBase,
+        remember_password: false,
+        auto_login: false,
+      };
+      handleLoginSuccess(data);
+    } catch (error) {
+      setStatus(`Cookies 登录失败：${error.message}`, 'error');
+    }
   }
 
   async function verifyTwoFactorCode() {
@@ -365,6 +367,7 @@ export function createAuthFlow({
     openTwoFactorDialog,
     handleLoginSuccess,
     submitLoginWithPayload,
+    handleCookieLogin,
     handleLogin,
     tryAutoLoginOnLoginPage,
     initLoginEnhancements,
