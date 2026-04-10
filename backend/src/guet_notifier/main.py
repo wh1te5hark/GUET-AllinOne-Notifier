@@ -1,9 +1,11 @@
 import logging
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc, inspect, select, text
 from sqlalchemy.orm import Session
 
@@ -90,6 +92,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 配置静态文件服务 - 挂载到 /static 路径
+frontend_dir = Path(__file__).resolve().parents[3] / "frontend"
+if frontend_dir.exists():
+    app.mount("/static", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+    logger.info(f"Static files mounted from: {frontend_dir}")
+else:
+    logger.warning(f"Frontend directory not found: {frontend_dir}")
+
+# 根路径重定向到静态文件
+@app.get("/")
+def redirect_to_frontend():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/static/index.html")
 
 
 def _build_login_response(
@@ -198,7 +214,7 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/")
+@app.get("/api/")
 def root() -> dict[str, str]:
     return {"service": "guet-notifier", "docs": "/docs"}
 

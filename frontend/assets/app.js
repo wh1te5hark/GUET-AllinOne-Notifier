@@ -507,8 +507,12 @@ function getToken() {
 }
 
 function getApiBase() {
-  const field = document.querySelector('#cas-login-form [name="api_base"]');
-  if (field?.value.trim()) return field.value.trim().replace(/\/$/, '');
+  try {
+    const field = document.querySelector('#cas-login-form [name="api_base"]');
+    if (field?.value?.trim()) return field.value.trim().replace(/\/$/, '');
+  } catch (e) {
+    // 表单未渲染时的错误处理
+  }
   return (localStorage.getItem(storageKeys.apiBase) || 'http://127.0.0.1:8000').replace(/\/$/, '');
 }
 
