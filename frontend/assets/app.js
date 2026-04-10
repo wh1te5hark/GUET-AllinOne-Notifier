@@ -1220,8 +1220,57 @@ const customColors = ColorManager.getColors();
 ColorManager.applyColors(customColors);
 ColorManager.bindEvents();
 
+// 语言管理
+const LanguageManager = {
+  storageKey: 'guet_notifier_language',
+  defaultLanguage: 'zh',
+  
+  getLanguage() {
+    return localStorage.getItem(this.storageKey) || this.defaultLanguage;
+  },
+  
+  setLanguage(lang) {
+    localStorage.setItem(this.storageKey, lang);
+    this.applyLanguage(lang);
+  },
+  
+  applyLanguage(lang) {
+    // 这里可以添加语言切换的具体实现
+    // 目前只是更新按钮状态
+    const zhButton = document.querySelector('#language-zh');
+    const enButton = document.querySelector('#language-en');
+    
+    if (zhButton && enButton) {
+      zhButton.setAttribute('variant', lang === 'zh' ? 'filled' : 'outlined');
+      enButton.setAttribute('variant', lang === 'en' ? 'filled' : 'outlined');
+    }
+  },
+  
+  bindEvents() {
+    const zhButton = document.querySelector('#language-zh');
+    const enButton = document.querySelector('#language-en');
+    
+    if (zhButton) {
+      zhButton.addEventListener('click', () => this.setLanguage('zh'));
+    }
+    
+    if (enButton) {
+      enButton.addEventListener('click', () => this.setLanguage('en'));
+    }
+  },
+  
+  init() {
+    const lang = this.getLanguage();
+    this.applyLanguage(lang);
+    this.bindEvents();
+  }
+};
+
 // 初始化字体大小
 FontSizeManager.init();
+
+// 初始化语言设置
+LanguageManager.init();
 
 // 初始化偏好设置展开/折叠功能
 const preferencesToggle = document.querySelector('#preferences-toggle');
