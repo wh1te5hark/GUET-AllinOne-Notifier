@@ -789,6 +789,7 @@ function handleRouteChange() {
   routeRenderTimer = setTimeout(() => {
     routeView.innerHTML = renderRoute(route);
     bindRouteEvents(route);
+    LanguageManager.applyLanguage(LanguageManager.getLanguage());
     routeRenderTimer = null;
   }, 300);
 }
@@ -1230,25 +1231,170 @@ ColorManager.bindEvents();
 const LanguageManager = {
   storageKey: 'guet_notifier_language',
   defaultLanguage: 'zh',
+  dictionaries: {
+    zh: {
+      htmlLang: 'zh-CN',
+      topHome: '主页',
+      topOverview: '概览',
+      drawerHome: '主页',
+      drawerLogin: '登录',
+      drawerOverview: '概览',
+      drawerCollectors: '采集器',
+      drawerRules: '转发规则',
+      drawerPushers: '推送器',
+      themeTitle: '主题模式',
+      themeAuto: '跟随系统',
+      themeLight: '日间模式',
+      themeDark: '夜间模式',
+      preferencesToggle: '偏好设置',
+      languageTitle: '语言偏好',
+      languageZh: '简体中文',
+      languageEn: 'English',
+      languagePreview: '这是语言预览文本',
+      fontSizeTitle: '字体大小',
+      fontSizeSm: '小',
+      fontSizeBase: '中',
+      fontSizeLg: '大',
+      fontPreview: '这是字体大小预览文本',
+      colorTitle: '自定义颜色',
+      presetTitle: '预设颜色',
+      resetColors: '重置颜色',
+      saveColors: '保存颜色',
+      loginTitle: '账号登录',
+      loginDesc: '使用桂电统一身份认证账号（智慧校园账号）登录，登录成功后自动同步当前用户信息。',
+      loginTip2fa: '支持 2FA 验证',
+      loginTipRecent: '支持历史账号快速切换',
+      loginTipAuto: '支持自动登录',
+      loginAdvanced: '高级配置（一般无需修改）',
+      recentAccounts: '最近登录账号',
+      deleteCurrent: '删除当前历史账号',
+      clearAll: '清空全部历史账号',
+      rememberPassword: '保存密码',
+      autoLogin: '自动登录',
+      loginButton: '登录',
+      loadProfile: '读取当前用户',
+      loginNote: '提示：勾选“自动登录”会自动启用“保存密码”；密码仅在本机加密保存。',
+      untouchedStatus: '尚未发起登录。',
+    },
+    en: {
+      htmlLang: 'en',
+      topHome: 'Home',
+      topOverview: 'Overview',
+      drawerHome: 'Home',
+      drawerLogin: 'Login',
+      drawerOverview: 'Overview',
+      drawerCollectors: 'Collectors',
+      drawerRules: 'Rules',
+      drawerPushers: 'Pushers',
+      themeTitle: 'Theme Mode',
+      themeAuto: 'System',
+      themeLight: 'Light',
+      themeDark: 'Dark',
+      preferencesToggle: 'Preferences',
+      languageTitle: 'Language',
+      languageZh: 'Chinese',
+      languageEn: 'English',
+      languagePreview: 'This is language preview text',
+      fontSizeTitle: 'Font Size',
+      fontSizeSm: 'Small',
+      fontSizeBase: 'Medium',
+      fontSizeLg: 'Large',
+      fontPreview: 'This is font size preview text',
+      colorTitle: 'Custom Colors',
+      presetTitle: 'Preset Colors',
+      resetColors: 'Reset Colors',
+      saveColors: 'Save Colors',
+      loginTitle: 'Sign In',
+      loginDesc: 'Use your GUET unified account (Smart Campus) to sign in. User profile will sync after login.',
+      loginTip2fa: '2FA Supported',
+      loginTipRecent: 'Quick Account Switch',
+      loginTipAuto: 'Auto Login',
+      loginAdvanced: 'Advanced Settings (Optional)',
+      recentAccounts: 'Recent Accounts',
+      deleteCurrent: 'Delete Current Account',
+      clearAll: 'Clear All Accounts',
+      rememberPassword: 'Remember Password',
+      autoLogin: 'Auto Login',
+      loginButton: 'Sign In',
+      loadProfile: 'Load Current User',
+      loginNote: 'Tip: Enabling auto login will also enable password remember; password is encrypted locally.',
+      untouchedStatus: 'No login request sent yet.',
+    },
+  },
   
   getLanguage() {
     return localStorage.getItem(this.storageKey) || this.defaultLanguage;
   },
   
   setLanguage(lang) {
-    localStorage.setItem(this.storageKey, lang);
-    this.applyLanguage(lang);
+    const nextLang = this.dictionaries[lang] ? lang : this.defaultLanguage;
+    localStorage.setItem(this.storageKey, nextLang);
+    this.applyLanguage(nextLang);
   },
   
   applyLanguage(lang) {
-    // 这里可以添加语言切换的具体实现
-    // 目前只是更新按钮状态
+    const dict = this.dictionaries[lang] || this.dictionaries[this.defaultLanguage];
+    document.documentElement.lang = dict.htmlLang;
+
     const zhButton = document.querySelector('#language-zh');
     const enButton = document.querySelector('#language-en');
     
     if (zhButton && enButton) {
       zhButton.setAttribute('variant', lang === 'zh' ? 'filled' : 'outlined');
       enButton.setAttribute('variant', lang === 'en' ? 'filled' : 'outlined');
+      zhButton.textContent = dict.languageZh;
+      enButton.textContent = dict.languageEn;
+    }
+
+    const setText = (selector, value) => {
+      if (!value) return;
+      const el = document.querySelector(selector);
+      if (el) el.textContent = value;
+    };
+
+    setText('.topbar-actions mdui-button[href="#/home"]', dict.topHome);
+    setText('.topbar-actions mdui-button[href="#/overview"]', dict.topOverview);
+    setText('mdui-list-item[href="#/home"]', dict.drawerHome);
+    setText('mdui-list-item[href="#/login"]', dict.drawerLogin);
+    setText('mdui-list-item[href="#/overview"]', dict.drawerOverview);
+    setText('mdui-list-item[href="#/collectors"]', dict.drawerCollectors);
+    setText('mdui-list-item[href="#/rules"]', dict.drawerRules);
+    setText('mdui-list-item[href="#/pushers"]', dict.drawerPushers);
+    setText('.drawer-theme-panel .drawer-theme-title', dict.themeTitle);
+    setText('#theme-mode-auto', dict.themeAuto);
+    setText('#theme-mode-light', dict.themeLight);
+    setText('#theme-mode-dark', dict.themeDark);
+    setText('#preferences-toggle', dict.preferencesToggle);
+    setText('.drawer-language-panel .drawer-color-title', dict.languageTitle);
+    setText('.language-preview-text', dict.languagePreview);
+    setText('.drawer-font-panel .drawer-color-title', dict.fontSizeTitle);
+    setText('#font-size-sm', dict.fontSizeSm);
+    setText('#font-size-base', dict.fontSizeBase);
+    setText('#font-size-lg', dict.fontSizeLg);
+    setText('.font-size-preview-text', dict.fontPreview);
+    setText('.drawer-color-panel .drawer-color-title', dict.colorTitle);
+    setText('.drawer-color-panel .drawer-color-title:nth-of-type(2)', dict.presetTitle);
+    setText('#reset-colors-btn', dict.resetColors);
+    setText('#save-colors-btn', dict.saveColors);
+
+    setText('.login-card .panel-title', dict.loginTitle);
+    setText('.login-card .panel-desc', dict.loginDesc);
+    setText('.login-page-tips .login-tip-chip:nth-child(1)', dict.loginTip2fa);
+    setText('.login-page-tips .login-tip-chip:nth-child(2)', dict.loginTipRecent);
+    setText('.login-page-tips .login-tip-chip:nth-child(3)', dict.loginTipAuto);
+    setText('.login-advanced summary', dict.loginAdvanced);
+    const recentSelect = document.querySelector('#recent-account-select');
+    if (recentSelect) recentSelect.setAttribute('label', dict.recentAccounts);
+    setText('#delete-recent-account-btn', dict.deleteCurrent);
+    setText('#clear-recent-accounts-btn', dict.clearAll);
+    setText('.login-preferences .login-pref-item:nth-child(1) span', dict.rememberPassword);
+    setText('.login-preferences .login-pref-item:nth-child(2) span', dict.autoLogin);
+    setText('.login-actions mdui-button[type="submit"]', dict.loginButton);
+    setText('#load-profile-btn', dict.loadProfile);
+    setText('.login-note', dict.loginNote);
+    if (appState.lastStatus?.message === this.dictionaries.zh.untouchedStatus
+      || appState.lastStatus?.message === this.dictionaries.en.untouchedStatus) {
+      setStatus(dict.untouchedStatus, 'muted');
     }
   },
   
@@ -1266,7 +1412,7 @@ const LanguageManager = {
   },
   
   init() {
-    const lang = this.getLanguage();
+    const lang = this.dictionaries[this.getLanguage()] ? this.getLanguage() : this.defaultLanguage;
     this.applyLanguage(lang);
     this.bindEvents();
   }
