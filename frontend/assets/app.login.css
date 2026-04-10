@@ -18,7 +18,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  color: var(--guet-muted);
+  color: color-mix(in srgb, var(--guet-text) 82%, var(--guet-muted) 18%);
   font-size: 0.85rem;
 }
 
@@ -82,7 +82,7 @@
   border-radius: 999px;
   padding: 0.2rem 0.6rem;
   font-size: 0.78rem;
-  color: var(--guet-muted);
+  color: color-mix(in srgb, var(--guet-text) 78%, var(--guet-muted) 22%);
   background: var(--guet-surface-soft);
 }
 
@@ -95,7 +95,7 @@
 
 .login-advanced summary {
   cursor: pointer;
-  color: var(--guet-muted);
+  color: color-mix(in srgb, var(--guet-text) 80%, var(--guet-muted) 20%);
   font-size: 0.86rem;
   margin-bottom: 0.45rem;
 }
@@ -106,7 +106,7 @@
 
 .login-note {
   margin-top: 0.75rem;
-  color: var(--guet-muted);
+  color: color-mix(in srgb, var(--guet-text) 74%, var(--guet-muted) 26%);
   font-size: 0.82rem;
   line-height: 1.5;
 }
@@ -189,6 +189,41 @@ html[data-theme="dark"] .login-actions mdui-button[type="submit"] {
 
 html[data-theme="dark"] .login-actions mdui-button#load-profile-btn {
   --label-text-color: #bcd4ff;
+}
+
+html[data-theme="dark"] .login-card .panel-desc,
+html[data-theme="dark"] .login-pref-item,
+html[data-theme="dark"] .login-tip-chip,
+html[data-theme="dark"] .login-advanced summary,
+html[data-theme="dark"] .login-note {
+  color: #d2e2ff;
+}
+
+html[data-theme="dark"] .login-tip-chip {
+  border-color: rgba(137, 176, 238, 0.45);
+  background: rgba(30, 52, 84, 0.62);
+}
+
+html[data-theme="dark"] .recent-account-btn,
+html[data-theme="dark"] .recent-account-tool-btn {
+  color: #deebff;
+  border-color: rgba(137, 176, 238, 0.38);
+  background: rgba(24, 44, 73, 0.82);
+}
+
+html[data-theme="dark"] .recent-account-tool-btn.danger {
+  color: #ff8f9f;
+}
+
+html[data-theme="dark"] .login-card mdui-text-field,
+html[data-theme="dark"] .login-card mdui-select {
+  --container-color: #16273e;
+  --label-text-color: #d6e5ff;
+  --input-text-color: #f2f7ff;
+  --supporting-text-color: #a9c0e3;
+  --placeholder-color: #9eb6d9;
+  --outline-color: #5a769f;
+  --focus-outline-color: #8bb6ff;
 }
 
 .recent-account-btn,
