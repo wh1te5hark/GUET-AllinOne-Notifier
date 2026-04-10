@@ -1223,6 +1223,23 @@ ColorManager.bindEvents();
 // 初始化字体大小
 FontSizeManager.init();
 
+// 初始化偏好设置展开/折叠功能
+const preferencesToggle = document.querySelector('#preferences-toggle');
+const preferencesPanel = document.querySelector('#preferences-panel');
+
+if (preferencesToggle && preferencesPanel) {
+  preferencesToggle.addEventListener('click', () => {
+    const isVisible = preferencesPanel.style.display !== 'none';
+    preferencesPanel.style.display = isVisible ? 'none' : 'block';
+    
+    // 切换图标
+    const iconElement = preferencesToggle.querySelector('mdui-icon');
+    if (iconElement) {
+      iconElement.setAttribute('icon', isVisible ? 'settings' : 'expand_less');
+    }
+  });
+}
+
 void restoreSavedSession();
 if (!window.location.hash) navigateTo('/home');
 handleRouteChange();

@@ -421,6 +421,21 @@ mdui-select:hover::after {
   --label-text-color: var(--guet-text);
 }
 
+/* 偏好设置部分样式 */
+.drawer-preferences-section {
+  padding: 0.8rem 1rem 1rem;
+}
+
+.drawer-preferences-panel {
+  margin-top: 0.8rem;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* 字体大小面板样式 */
 .drawer-font-panel {
   padding: 0.8rem 1rem 1rem;
