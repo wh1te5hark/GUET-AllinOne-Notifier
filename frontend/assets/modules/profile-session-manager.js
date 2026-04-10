@@ -13,6 +13,10 @@ export function createProfileSessionManager({
   applyRealtimeToOverviewDom,
   resolveNickname,
 }) {
+  function isEnglish() {
+    return (localStorage.getItem('guet_notifier_language') || 'zh') === 'en';
+  }
+
   function fileToDataUrl(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -113,7 +117,7 @@ export function createProfileSessionManager({
   async function fetchOverviewRealtime(silent = false) {
     const token = getToken();
     if (!token) {
-      appState.realtime.error = '未登录，无法请求概览数据。';
+      appState.realtime.error = isEnglish() ? 'Not signed in. Cannot request overview data.' : '未登录，无法请求概览数据。';
       return;
     }
     appState.realtime.loading = true;
@@ -151,7 +155,9 @@ export function createProfileSessionManager({
       updateAccountDisplay();
       appState.realtime.updatedAt = new Date().toLocaleTimeString();
     } catch (error) {
-      appState.realtime.error = `实时数据获取失败：${error.message}`;
+      appState.realtime.error = isEnglish()
+        ? `Realtime data fetch failed: ${error.message}`
+        : `实时数据获取失败：${error.message}`;
     } finally {
       appState.realtime.loading = false;
       if (!silent) setStatus('概览实时数据已更新。', 'success');

@@ -18,9 +18,41 @@ export function createAuthFlow({
   let wechatPollTimer = null;
   let pendingLoginContext = null;
 
+  function getLang() {
+    return localStorage.getItem('guet_notifier_language') || 'zh';
+  }
+
+  function translate2faMessage(message) {
+    const text = String(message || '');
+    if (getLang() !== 'en') return text;
+
+    if (text === '请先登录。') return 'Please sign in first.';
+    if (text === '请先输入验证码。') return 'Please enter the verification code.';
+    if (text === '正在提交验证码…') return 'Submitting verification code...';
+    if (text === '不支持短信验证码。') return 'SMS verification is not supported.';
+    if (text === '正在发送短信验证码…') return 'Sending SMS verification code...';
+    if (text === '验证码已发送。' || text === '验证码已发送至手机') return 'Verification code has been sent.';
+    if (text.includes('验证码已发送')) return 'Verification code has been sent.';
+    if (text === '不支持微信扫码。') return 'WeChat QR verification is not supported.';
+    if (text === '正在获取微信二维码…') return 'Fetching WeChat QR code...';
+    if (text === '请使用微信扫描下方二维码。') return 'Please scan the QR code below with WeChat.';
+    if (text === '已扫码，请在手机上确认。') return 'Scanned. Please confirm on your phone.';
+    if (text === '二维码已过期，请重新获取。') return 'QR code expired. Please fetch a new one.';
+    if (text === '已取消，可重新获取二维码。') return 'Cancelled. You can fetch a new QR code.';
+    if (text === '未知状态') return 'Unknown status';
+    if (text === '已扫码，请确认') return 'Scanned, please confirm';
+    if (text.startsWith('验证失败：')) return `Verification failed: ${text.replace('验证失败：', '')}`;
+    if (text.startsWith('发送失败：')) return `Send failed: ${text.replace('发送失败：', '')}`;
+    if (text.startsWith('获取二维码失败：')) return `Failed to fetch QR code: ${text.replace('获取二维码失败：', '')}`;
+    if (text.startsWith('轮询失败：')) return `Polling failed: ${text.replace('轮询失败：', '')}`;
+    if (text.startsWith('轮询异常：')) return `Polling error: ${text.replace('轮询异常：', '')}`;
+
+    return text;
+  }
+
   function set2faStatus(message, type = 'info') {
     if (!elements.twoFactorStatusEl) return;
-    elements.twoFactorStatusEl.textContent = message;
+    elements.twoFactorStatusEl.textContent = translate2faMessage(message);
     elements.twoFactorStatusEl.className = `two-factor-status visible ${type}`;
   }
 
@@ -79,11 +111,14 @@ export function createAuthFlow({
     setStatus('登录成功，正在同步当前账号信息…', 'success');
     closeTwoFactorDialog();
     resetTwoFactorState();
-    void syncCurrentUser({ silent: true }).then((user) => {
-      void loginAccountManager.persistLoginContext(pendingLoginContext, user);
-    });
-    void syncSmartCampusProfile({ silent: true });
     navigateTo('/overview');
+    void (async () => {
+      const user = await syncCurrentUser({ silent: true });
+      void loginAccountManager.persistLoginContext(pendingLoginContext, user);
+      await syncSmartCampusProfile({ silent: true });
+      if (user) setStatus('登录成功，当前账号信息同步完毕。', 'success');
+      else setStatus('登录成功，但账号信息同步失败，请手动刷新。', 'error');
+    })();
   }
 
   async function submitLoginWithPayload(payload, options = {}) {
@@ -127,14 +162,27 @@ export function createAuthFlow({
 
   async function handleLogin(event) {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    await submitLoginWithPayload({
-      student_id: formData.get('student_id'),
-      password: formData.get('password'),
-      api_base: formData.get('api_base'),
-      remember_password: !!document.querySelector('#remember-password')?.checked,
-      auto_login: !!document.querySelector('#auto-login')?.checked,
-    });
+    const form = event.currentTarget;
+    const submitButton = form.querySelector('mdui-button[type="submit"]');
+    const formData = new FormData(form);
+    if (submitButton) {
+      submitButton.setAttribute('loading', '');
+      submitButton.setAttribute('disabled', '');
+    }
+    try {
+      await submitLoginWithPayload({
+        student_id: formData.get('student_id'),
+        password: formData.get('password'),
+        api_base: formData.get('api_base'),
+        remember_password: !!document.querySelector('#remember-password')?.checked,
+        auto_login: !!document.querySelector('#auto-login')?.checked,
+      });
+    } finally {
+      if (submitButton) {
+        submitButton.removeAttribute('loading');
+        submitButton.removeAttribute('disabled');
+      }
+    }
   }
 
   async function tryAutoLoginOnLoginPage() {
@@ -156,47 +204,46 @@ export function createAuthFlow({
   }
 
   async function initLoginEnhancements() {
-    const select = document.querySelector('#recent-account-select');
     const rememberField = document.querySelector('#remember-password');
     const autoField = document.querySelector('#auto-login');
-    const deleteCurrentButton = document.querySelector('#delete-recent-account-btn');
-    const clearAllButton = document.querySelector('#clear-recent-accounts-btn');
-    const preferredId = loginAccountManager.getPreferredRecentAccountId();
-    if (select) {
-      select.addEventListener('change', () => {
-        const sid = select.value || '';
-        if (sid) void loginAccountManager.fillLoginFormByAccount(sid);
-      });
-    }
-    document.querySelectorAll('.recent-account-btn').forEach((button) => {
-      button.addEventListener('click', () => {
-        const sid = button.getAttribute('data-student-id');
-        if (!sid) return;
-        if (select) select.value = sid;
-        void loginAccountManager.fillLoginFormByAccount(sid);
-      });
-    });
     rememberField?.addEventListener('change', () => {
       if (!rememberField.checked && autoField) autoField.checked = false;
     });
     autoField?.addEventListener('change', () => {
       if (autoField.checked && rememberField) rememberField.checked = true;
     });
-    deleteCurrentButton?.addEventListener('click', () => {
-      const sid = (select?.value || document.querySelector('#cas-login-form [name="student_id"]')?.value || '').trim();
-      if (!sid) return setStatus('请选择要删除的历史账号。', 'error');
-      if (!loginAccountManager.removeRecentAccountById(sid)) return setStatus(`历史账号 ${sid} 不存在。`, 'error');
-      setStatus(`已删除历史账号：${sid}`, 'success');
-      loginAccountManager.rerenderLoginPage();
-    });
-    clearAllButton?.addEventListener('click', () => {
-      if (!appState.login.recentAccounts.length) return setStatus('当前没有可清空的历史账号。', 'muted');
-      loginAccountManager.clearAllRecentAccounts();
-      setStatus('已清空全部历史账号。', 'success');
-      loginAccountManager.rerenderLoginPage();
-    });
-    if (preferredId) await loginAccountManager.fillLoginFormByAccount(preferredId);
     await tryAutoLoginOnLoginPage();
+  }
+
+  async function handleCookieLogin() {
+    const cookieText = String(document.querySelector('#cookie-login-text')?.value || '').trim();
+    const apiBase = getApiBase();
+    if (!cookieText) {
+      setStatus('请先填写 Cookies。', 'error');
+      return;
+    }
+    pendingLoginContext = null;
+    setStatus('正在通过 Cookies 登录…', 'muted');
+    try {
+      const response = await fetch(`${apiBase}/api/v1/auth/cas/cookie-login`, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cookie_text: cookieText }),
+      });
+      const data = await parseJsonSafely(response);
+      if (!response.ok) throw new Error(formatApiError(data.detail, `登录失败（${response.status}）`));
+      pendingLoginContext = {
+        student_id: data.student_id || '',
+        password: '',
+        api_base: apiBase,
+        remember_password: false,
+        auto_login: false,
+      };
+      handleLoginSuccess(data);
+    } catch (error) {
+      setStatus(`Cookies 登录失败：${error.message}`, 'error');
+    }
   }
 
   async function verifyTwoFactorCode() {
@@ -295,7 +342,7 @@ export function createAuthFlow({
       if (st === 'scanned') {
         set2faStatus('已扫码，请在手机上确认。', 'info');
         if (elements.wechatQrOverlay) {
-          elements.wechatQrOverlay.textContent = '已扫码，请确认';
+          elements.wechatQrOverlay.textContent = translate2faMessage('已扫码，请确认');
           elements.wechatQrOverlay.style.display = 'flex';
         }
         wechatPollTimer = setTimeout(() => void pollWechatStatus(), 1500);
@@ -320,6 +367,7 @@ export function createAuthFlow({
     openTwoFactorDialog,
     handleLoginSuccess,
     submitLoginWithPayload,
+    handleCookieLogin,
     handleLogin,
     tryAutoLoginOnLoginPage,
     initLoginEnhancements,

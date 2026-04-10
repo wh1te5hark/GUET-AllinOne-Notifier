@@ -27,6 +27,7 @@ from guet_notifier.collector_pcportal import (
 from guet_notifier.db import Base, engine, get_db_session
 from guet_notifier.models import CollectorSetting, Credential, NotificationItem, UserProfile
 from guet_notifier.schemas import (
+    CasCookieLoginRequest,
     Cas2FAChallengeRequest,
     Cas2FASendCodeResponse,
     Cas2FAVerifyRequest,
@@ -193,6 +194,29 @@ def _to_setting_schema(setting: CollectorSetting) -> SmartCampusCollectorSetting
     )
 
 
+def _parse_cookie_text(cookie_text: str) -> list[dict[str, str]]:
+    cookies: list[dict[str, str]] = []
+    normalized_text = cookie_text.replace("\r", ";").replace("\n", ";")
+    for segment in normalized_text.split(";"):
+        pair = segment.strip()
+        if not pair or "=" not in pair:
+            continue
+        name, value = pair.split("=", 1)
+        name = name.strip()
+        value = value.strip()
+        if not name:
+            continue
+        cookies.append(
+            {
+                "name": name,
+                "value": value,
+                "domain": ".guet.edu.cn",
+                "path": "/",
+            }
+        )
+    return cookies
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -229,6 +253,38 @@ async def cas_login(
 
     return _build_login_response(
         db, login_result.student_id, login_result.redirect_url, login_result.cookies,
+    )
+
+
+@app.post("/api/v1/auth/cas/cookie-login", response_model=LoginResponse)
+async def cas_cookie_login(
+    payload: CasCookieLoginRequest,
+    db: Session = Depends(get_db_session),
+) -> LoginResponse:
+    cookies = _parse_cookie_text(payload.cookie_text)
+    if not cookies:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cookies 格式无效，请使用 name=value; name2=value2 的格式。",
+        )
+    try:
+        login_info = await fetch_login_info(cookies)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cookies 无法用于访问智慧校园，请检查是否过期：{exc}",
+        ) from exc
+    student_id = (login_info.login_name or "").strip()
+    if not student_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cookies 校验通过但未识别到学号，请更换 Cookies 重试。",
+        )
+    return _build_login_response(
+        db=db,
+        student_id=student_id,
+        redirect_url="cookie_login",
+        cookies=cookies,
     )
 
 

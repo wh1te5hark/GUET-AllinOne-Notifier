@@ -48,20 +48,29 @@ poetry run pytest
 - 不使用 npm / Vite / Webpack 等黑洞级技术栈，不需要在电脑里留下一坨 node_modules
 - 默认后端地址为 `http://127.0.0.1:8000`，可在页面表单中修改。
 - 登录成功后，access token 存储在浏览器本地存储中，供演示阶段调用 `/api/v1/me`。
-- 登录页支持最近账号选择、快速切换、保存密码与自动登录（仅前端本地加密存储，不上传后端）。
+- 登录页支持通过 Cookies 直接换取会话（`/api/v1/auth/cas/cookie-login`）。
+- 登录页支持保存密码与自动登录（仅前端本地加密存储，不上传后端）。
 
 
 前端文件组成：  
 
 - 样式按功能拆分：`app.css`（通用）+ `app.login.css`（登录页）。  
-- js 按功能拆分：  
-  - `app.js`（主流程与初始化）
+- JS 按职责拆分：
+  - `app.js`（轻量入口，仅引入 `app.entry.js`）
+  - `app.entry.js`（应用装配层：状态、依赖注入、模块协作）
+  - `modules/app-bootstrap.js`（启动流程与全局事件绑定）
+  - `modules/route-controller.js`（路由切换与页面事件装配）
+  - `modules/i18n-manager.js`（语言包加载、缓存、切换与回退）
   - `modules/auth-flow.js`（CAS 登录、2FA 与自动登录流程）
   - `modules/login-account-manager.js`（账号记忆与自动登录）
   - `modules/profile-session-manager.js`（用户资料、会话恢复、概览刷新）
   - `modules/renderers.js`（页面渲染与局部 DOM 回填）
   - `modules/smart-campus-manager.js`（采集器设置与消息同步）
   - `modules/ui-manager.js`（主题切换、头像菜单与抽屉交互）
+- i18n 词典外置：
+  - `assets/i18n/zh-CN.json`
+  - `assets/i18n/en-US.json`
+  - 缺失键回退到默认语言（`zh`）。
 
 ## 配置
 

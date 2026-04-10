@@ -6,6 +6,10 @@ class CasLoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class CasCookieLoginRequest(BaseModel):
+    cookie_text: str = Field(min_length=1, max_length=20_000)
+
+
 class CookieItem(BaseModel):
     name: str
     value: str

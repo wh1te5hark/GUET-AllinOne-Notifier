@@ -2,9 +2,7 @@ export function createLoginAccountManager({
   appState,
   storageKeys,
   getCurrentRoute,
-  routeView,
-  renderRoute,
-  bindRouteEvents,
+  rerenderRoute,
 }) {
   function safeJsonParse(raw, fallback) {
     if (!raw) return fallback;
@@ -187,8 +185,7 @@ export function createLoginAccountManager({
 
   function rerenderLoginPage() {
     if (getCurrentRoute() !== '/login') return;
-    routeView.innerHTML = renderRoute('/login');
-    bindRouteEvents('/login');
+    rerenderRoute('/login');
   }
 
   async function getAutoLoginCandidate() {
