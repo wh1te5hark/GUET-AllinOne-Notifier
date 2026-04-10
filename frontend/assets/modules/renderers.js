@@ -54,12 +54,20 @@ export function createRenderers({
     return `
     <section class="login-page">
       <mdui-card class="panel-card login-card">
-        <div class="panel-title">登录</div>
-        <p class="panel-desc">请使用桂电统一身份认证账号(智慧校园账号)登录。</p>
+        <div class="panel-title">账号登录</div>
+        <p class="panel-desc">使用桂电统一身份认证账号（智慧校园账号）登录，登录成功后自动同步当前用户信息。</p>
+        <div class="login-page-tips">
+          <span class="login-tip-chip">支持 2FA 验证</span>
+          <span class="login-tip-chip">支持历史账号快速切换</span>
+          <span class="login-tip-chip">支持自动登录</span>
+        </div>
         <form id="cas-login-form" class="login-form">
-          <mdui-text-field name="student_id" label="学号 / 工号" variant="outlined" required></mdui-text-field>
-          <mdui-text-field name="password" type="password" toggle-password label="密码" variant="outlined" required></mdui-text-field>
-          <mdui-text-field name="api_base" label="后端 API 地址" variant="outlined" value="${apiBase}" helper="默认指向本地后端服务"></mdui-text-field>
+          <mdui-text-field name="student_id" label="学号 / 工号" variant="outlined" required autocomplete="username"></mdui-text-field>
+          <mdui-text-field name="password" type="password" toggle-password label="密码" variant="outlined" required autocomplete="current-password"></mdui-text-field>
+          <details class="login-advanced">
+            <summary>高级配置（一般无需修改）</summary>
+            <mdui-text-field name="api_base" label="后端 API 地址" variant="outlined" value="${apiBase}" helper="默认指向本地后端服务"></mdui-text-field>
+          </details>
           <mdui-select id="recent-account-select" label="最近登录账号" variant="outlined" value="${selectedRecent}">
             ${loginAccountManager.renderRecentAccountOptions()}
           </mdui-select>
@@ -85,6 +93,9 @@ export function createRenderers({
             <mdui-button type="button" variant="text" id="load-profile-btn">读取当前用户</mdui-button>
           </div>
         </form>
+        <div class="login-note">
+          <strong>提示：</strong>勾选“自动登录”会自动启用“保存密码”；密码仅在本机加密保存。
+        </div>
         <div id="login-status" class="result-card muted">尚未发起登录。</div>
       </mdui-card>
     </section>

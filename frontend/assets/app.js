@@ -25,6 +25,7 @@ const drawerAvatarImg = document.querySelector('#drawer-avatar-img');
 const drawerAvatarFallback = document.querySelector('#drawer-avatar-fallback');
 const drawerLogoutButton = document.querySelector('#drawer-logout-btn');
 const drawerUserActions = document.querySelector('.drawer-user-actions');
+const drawerRouteItems = drawer?.querySelectorAll('mdui-list-item[href^="#/"]') || [];
 const topAvatarTrigger = document.querySelector('#top-avatar-trigger');
 const topAvatarPanel = document.querySelector('#top-avatar-panel');
 const topAvatarImg = document.querySelector('#top-avatar-img');
@@ -193,25 +194,24 @@ const ColorManager = {
   },
   
   bindEvents() {
+    const liveColors = this.getColors();
+
     if (colorPrimaryInput) {
       colorPrimaryInput.addEventListener('input', (e) => {
-        const colors = this.getColors();
-        colors.primary = e.target.value;
-        this.applyColors(colors);
+        liveColors.primary = e.target.value;
+        this.applyColors(liveColors);
       });
     }
     if (colorAccentInput) {
       colorAccentInput.addEventListener('input', (e) => {
-        const colors = this.getColors();
-        colors.accent = e.target.value;
-        this.applyColors(colors);
+        liveColors.accent = e.target.value;
+        this.applyColors(liveColors);
       });
     }
     if (colorDangerInput) {
       colorDangerInput.addEventListener('input', (e) => {
-        const colors = this.getColors();
-        colors.danger = e.target.value;
-        this.applyColors(colors);
+        liveColors.danger = e.target.value;
+        this.applyColors(liveColors);
       });
     }
     if (presetColorsContainer) {
@@ -219,24 +219,25 @@ const ColorManager = {
         const presetColor = e.target.closest('.preset-color');
         if (presetColor) {
           const color = presetColor.dataset.color;
-          const colors = this.getColors();
-          colors.primary = color;
-          this.applyColors(colors);
+          liveColors.primary = color;
+          this.applyColors(liveColors);
         }
       });
     }
     if (resetColorsButton) {
       resetColorsButton.addEventListener('click', () => {
+        liveColors.primary = this.defaultColors.primary;
+        liveColors.accent = this.defaultColors.accent;
+        liveColors.danger = this.defaultColors.danger;
         this.applyColors(this.defaultColors);
       });
     }
     if (saveColorsButton) {
       saveColorsButton.addEventListener('click', () => {
-        const colors = this.getColors();
-        if (colorPrimaryInput) colors.primary = colorPrimaryInput.value;
-        if (colorAccentInput) colors.accent = colorAccentInput.value;
-        if (colorDangerInput) colors.danger = colorDangerInput.value;
-        this.saveColors(colors);
+        if (colorPrimaryInput) liveColors.primary = colorPrimaryInput.value;
+        if (colorAccentInput) liveColors.accent = colorAccentInput.value;
+        if (colorDangerInput) liveColors.danger = colorDangerInput.value;
+        this.saveColors(liveColors);
         setStatus('颜色保存成功！', 'success');
       });
     }
@@ -460,7 +461,7 @@ function navigateTo(route) {
 }
 
 function updateActiveRouteInDrawer(route) {
-  drawer?.querySelectorAll('mdui-list-item[href^="#/"]').forEach((node) => {
+  drawerRouteItems.forEach((node) => {
     const target = node.getAttribute('href')?.replace(/^#/, '') || '';
     node.classList.toggle('route-active', target === route);
   });
@@ -709,50 +710,52 @@ function renderRoute(route) {
 }
 
 function bindRouteEvents(route) {
+  const queryInRoute = (selector) => routeView.querySelector(selector);
+
   if (route === '/login' || route === '/overview') {
-    document.querySelector('#load-profile-btn')?.addEventListener('click', loadProfile);
+    queryInRoute('#load-profile-btn')?.addEventListener('click', loadProfile);
     applyStatusToPage();
   }
   if (route === '/login') {
-    document.querySelector('#cas-login-form')?.addEventListener('submit', handleLogin);
+    queryInRoute('#cas-login-form')?.addEventListener('submit', handleLogin);
     void initLoginEnhancements();
   }
   if (route === '/overview') {
-    document.querySelector('#refresh-overview-btn')?.addEventListener('click', () => fetchOverviewRealtime());
-    document.querySelector('#overview-loading-note')?.parentElement?.addEventListener('click', () => fetchOverviewRealtime());
-    document.querySelector('#profile-avatar-file')?.addEventListener('change', onAvatarFileSelected);
-    document.querySelector('#save-profile-btn')?.addEventListener('click', saveProfile);
+    queryInRoute('#refresh-overview-btn')?.addEventListener('click', () => fetchOverviewRealtime());
+    queryInRoute('#overview-loading-note')?.parentElement?.addEventListener('click', () => fetchOverviewRealtime());
+    queryInRoute('#profile-avatar-file')?.addEventListener('change', onAvatarFileSelected);
+    queryInRoute('#save-profile-btn')?.addEventListener('click', saveProfile);
     applyRealtimeToOverviewDom();
     void fetchOverviewRealtime(true);
   }
   if (route === '/home') renderTimeline('home-timeline-list');
   if (route === '/overview') renderTimeline('overview-timeline-list');
   if (route === '/collectors') {
-    document.querySelector('#save-smart-campus-settings-btn')?.addEventListener('click', () => {
+    queryInRoute('#save-smart-campus-settings-btn')?.addEventListener('click', () => {
       void saveSmartCampusSettings();
     });
-    document.querySelector('#sc-schedule-mode')?.addEventListener('change', () => {
+    queryInRoute('#sc-schedule-mode')?.addEventListener('change', () => {
       toggleSmartCampusScheduleMode();
     });
-    document.querySelector('#apply-smart-campus-query-btn')?.addEventListener('click', () => {
+    queryInRoute('#apply-smart-campus-query-btn')?.addEventListener('click', () => {
       void applySmartCampusQuery();
     });
-    document.querySelector('#reset-smart-campus-query-btn')?.addEventListener('click', () => {
+    queryInRoute('#reset-smart-campus-query-btn')?.addEventListener('click', () => {
       resetSmartCampusQuery();
     });
     const debouncedApplyQuery = debounce(() => void applySmartCampusQuery(), 300);
-    document.querySelector('#sc-search-q')?.addEventListener('input', debouncedApplyQuery);
-    document.querySelector('#sc-search-sender')?.addEventListener('input', debouncedApplyQuery);
-    document.querySelector('#sc-search-q')?.addEventListener('keydown', (event) => {
+    queryInRoute('#sc-search-q')?.addEventListener('input', debouncedApplyQuery);
+    queryInRoute('#sc-search-sender')?.addEventListener('input', debouncedApplyQuery);
+    queryInRoute('#sc-search-q')?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') void applySmartCampusQuery();
     });
-    document.querySelector('#sc-search-sender')?.addEventListener('keydown', (event) => {
+    queryInRoute('#sc-search-sender')?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') void applySmartCampusQuery();
     });
-    document.querySelector('#sync-smart-campus-btn')?.addEventListener('click', () => {
+    queryInRoute('#sync-smart-campus-btn')?.addEventListener('click', () => {
       void syncSmartCampusMessages();
     });
-    document.querySelector('#refresh-smart-campus-btn')?.addEventListener('click', () => {
+    queryInRoute('#refresh-smart-campus-btn')?.addEventListener('click', () => {
       void loadSmartCampusMessages();
     });
     toggleSmartCampusScheduleMode();
@@ -764,6 +767,8 @@ function bindRouteEvents(route) {
 function applyRealtimeToOverviewDom() {
   return renderers.applyRealtimeToOverviewDom();
 }
+
+let routeRenderTimer = null;
 
 function handleRouteChange() {
   const route = getRouteFromHash();
@@ -779,10 +784,12 @@ function handleRouteChange() {
   // 显示骨架屏
   showSkeleton(route);
   
-  // 延迟渲染实际内容，模拟网络加载
-  setTimeout(() => {
+  // 延迟渲染实际内容，模拟网络加载（清理前一次切换，避免快速切路由时重复渲染）
+  if (routeRenderTimer) clearTimeout(routeRenderTimer);
+  routeRenderTimer = setTimeout(() => {
     routeView.innerHTML = renderRoute(route);
     bindRouteEvents(route);
+    routeRenderTimer = null;
   }, 300);
 }
 
@@ -1178,7 +1185,6 @@ function debounce(func, wait) {
   let timeout;
   return function executedFunction(...args) {
     const later = () => {
-      clearTimeout(timeout);
       func(...args);
     };
     clearTimeout(timeout);

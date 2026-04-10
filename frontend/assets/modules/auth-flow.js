@@ -127,14 +127,27 @@ export function createAuthFlow({
 
   async function handleLogin(event) {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    await submitLoginWithPayload({
-      student_id: formData.get('student_id'),
-      password: formData.get('password'),
-      api_base: formData.get('api_base'),
-      remember_password: !!document.querySelector('#remember-password')?.checked,
-      auto_login: !!document.querySelector('#auto-login')?.checked,
-    });
+    const form = event.currentTarget;
+    const submitButton = form.querySelector('mdui-button[type="submit"]');
+    const formData = new FormData(form);
+    if (submitButton) {
+      submitButton.setAttribute('loading', '');
+      submitButton.setAttribute('disabled', '');
+    }
+    try {
+      await submitLoginWithPayload({
+        student_id: formData.get('student_id'),
+        password: formData.get('password'),
+        api_base: formData.get('api_base'),
+        remember_password: !!document.querySelector('#remember-password')?.checked,
+        auto_login: !!document.querySelector('#auto-login')?.checked,
+      });
+    } finally {
+      if (submitButton) {
+        submitButton.removeAttribute('loading');
+        submitButton.removeAttribute('disabled');
+      }
+    }
   }
 
   async function tryAutoLoginOnLoginPage() {
