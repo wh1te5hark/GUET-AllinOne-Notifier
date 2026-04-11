@@ -380,6 +380,10 @@ const colorManager = {
     if (elements.colorPrimaryInput) elements.colorPrimaryInput.value = colors.primary;
     if (elements.colorAccentInput) elements.colorAccentInput.value = colors.accent;
     if (elements.colorDangerInput) elements.colorDangerInput.value = colors.danger;
+    if (window.mdui?.setColorScheme) window.mdui.setColorScheme(colors.primary);
+    const currentMode = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+    if (window.mdui?.setTheme) window.mdui.setTheme(currentMode);
+    uiManager.resyncMduiHostsFromDom();
   },
   saveColors(colors) {
     localStorage.setItem(storageKeys.customColors, JSON.stringify(colors));
