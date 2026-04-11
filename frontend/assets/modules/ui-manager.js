@@ -28,6 +28,14 @@ export function createUiManager({
     elements.themeModeDarkButton.variant = preference === 'dark' ? 'filled' : 'outlined';
   }
 
+  /** MDUI 组件除读取 html 上的 mdui-theme-* 外，也认宿主 `theme`；刷新后仅 setTheme 有时序问题，显式同步布局/抽屉更稳 */
+  function syncMduiComponentTheme(preference, normalized) {
+    const hostTheme = preference === 'auto' ? 'auto' : normalized;
+    elements.drawer?.setAttribute('theme', hostTheme);
+    document.querySelector('mdui-layout')?.setAttribute('theme', hostTheme);
+    document.querySelector('#two-factor-dialog')?.setAttribute('theme', hostTheme);
+  }
+
   function applyTheme(mode, preference = 'light') {
     const normalized = mode === 'dark' ? 'dark' : 'light';
     document.documentElement.dataset.theme = normalized;
@@ -36,6 +44,7 @@ export function createUiManager({
     updateThemeModeButtons(preference);
     if (window.mdui?.setTheme) window.mdui.setTheme(normalized);
     if (window.mdui?.setColorScheme) window.mdui.setColorScheme(themeColors[normalized]);
+    syncMduiComponentTheme(preference, normalized);
   }
 
   function applyThemeByPreference(preference) {
@@ -52,6 +61,12 @@ export function createUiManager({
     mediaQuery.addEventListener('change', (event) => {
       if (getPreferredThemeMode() === 'auto') applyTheme(event.matches ? 'dark' : 'light', 'auto');
     });
+  }
+
+  function resyncMduiHostsFromDom() {
+    const preference = getPreferredThemeMode();
+    const normalized = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+    syncMduiComponentTheme(preference, normalized);
   }
 
   function toggleAvatarMenu(forceOpen) {
@@ -123,6 +138,7 @@ export function createUiManager({
     applyTheme,
     applyThemeByPreference,
     initTheme,
+    resyncMduiHostsFromDom,
     toggleAvatarMenu,
     handleLogout,
     bindShellEvents,

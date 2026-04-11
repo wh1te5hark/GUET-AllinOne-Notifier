@@ -167,20 +167,19 @@ async function copyCurrentCookies() {
       : [];
   const loginReady = formatCookiesForLogin(cookiePayload);
   if (!loginReady) {
-    setStatus('当前没有可复制的 Cookies。', 'muted');
+    setStatus(i18nManager.t('statusNoCookies', '当前没有可复制的 Cookies。'), 'muted');
     return;
   }
   try {
     await navigator.clipboard.writeText(loginReady);
-    setStatus('Cookies 已复制到剪贴板。', 'success');
+    setStatus(i18nManager.t('statusCookiesCopied', 'Cookies 已复制到剪贴板。'), 'success');
   } catch {
-    setStatus('复制失败，请手动复制。', 'error');
+    setStatus(i18nManager.t('statusCopyFailed', '复制失败，请手动复制。'), 'error');
   }
 }
 
 function resolveNickname(user) {
-  const lang = localStorage.getItem(storageKeys.language) || 'zh';
-  const notLoggedIn = lang === 'en' ? 'Not signed in' : '未登录';
+  const notLoggedIn = i18nManager.t('notLoggedIn', '未登录');
   if (!user) return notLoggedIn;
   return String(user.display_name || '').trim()
     || String(user.real_name || '').trim()
@@ -198,14 +197,13 @@ function updateActiveRouteInDrawer(route) {
 function updateAccountDisplay() {
   const user = appState.currentUser;
   const label = resolveNickname(user);
-  const lang = localStorage.getItem(storageKeys.language) || 'zh';
   const student = user?.student_id || '--';
   const avatar = user?.avatar_base64 || '';
   if (elements.topAccount) elements.topAccount.textContent = label;
   if (elements.drawerDisplayName) elements.drawerDisplayName.textContent = label;
-  if (elements.drawerAccount) elements.drawerAccount.textContent = lang === 'en' ? `Current account: ${student}` : `当前账号：${student}`;
+  if (elements.drawerAccount) elements.drawerAccount.textContent = i18nManager.t('drawerAccount', '当前账号：{{student}}').replace('{{student}}', student);
   if (elements.drawerUserActions) elements.drawerUserActions.style.display = user ? '' : 'none';
-  if (elements.topAvatarName) elements.topAvatarName.textContent = user ? `${label} (${user.student_id || ''})` : (lang === 'en' ? 'Not signed in' : '未登录');
+  if (elements.topAvatarName) elements.topAvatarName.textContent = user ? `${label} (${user.student_id || ''})` : i18nManager.t('notLoggedIn', '未登录');
 
   if (elements.topAvatarImg && elements.topAvatarFallback) {
     if (avatar) {
@@ -243,15 +241,17 @@ function applyStatusToPage() {
 function translateStatusMessage(message) {
   const lang = localStorage.getItem(storageKeys.language) || 'zh';
   if (lang !== 'en') return String(message || '');
-  return String(message || '')
-    .replace('尚未发起登录。', 'No login request sent yet.')
-    .replace('概览实时数据已更新。', 'Overview realtime data refreshed.')
-    .replace('颜色保存成功！', 'Colors saved successfully.')
-    .replace('已登出，可重新登录或切换账号。', 'Logged out. You can sign in again or switch accounts.')
-    .replace('登录成功，当前账号信息同步完毕。', 'Login succeeded. Account info sync completed.')
-    .replace('当前没有可复制的 Cookies。', 'No cookies available to copy.')
-    .replace('Cookies 已复制到剪贴板。', 'Cookies copied to clipboard.')
-    .replace('复制失败，请手动复制。', 'Copy failed. Please copy manually.');
+  const translations = {
+    '尚未发起登录。': i18nManager.t('untouchedStatus', 'No login request sent yet.'),
+    '概览实时数据已更新。': 'Overview realtime data refreshed.',
+    '颜色保存成功！': i18nManager.t('statusColorsSaved', 'Colors saved successfully!'),
+    '已登出，可重新登录或切换账号。': i18nManager.t('statusLoggedOut', 'Logged out. You can sign in again or switch accounts.'),
+    '登录成功，当前账号信息同步完毕。': i18nManager.t('statusLoginSuccess', 'Login succeeded. Account info sync completed.'),
+    '当前没有可复制的 Cookies。': i18nManager.t('statusNoCookies', 'No cookies available to copy.'),
+    'Cookies 已复制到剪贴板。': i18nManager.t('statusCookiesCopied', 'Cookies copied to clipboard.'),
+    '复制失败，请手动复制。': i18nManager.t('statusCopyFailed', 'Copy failed. Please copy manually.')
+  };
+  return translations[message] || String(message || '');
 }
 
 function setStatus(message, type = 'muted') {
@@ -276,7 +276,7 @@ async function syncCurrentUser({ silent = false } = {}) {
   if (!token) {
     appState.currentUser = null;
     updateAccountDisplay();
-    if (!silent) setStatus('请先登录后再读取当前用户。', 'error');
+    if (!silent) setStatus(i18nManager.t('statusPleaseLogin', '请先登录后再读取当前用户。'), 'error');
     return null;
   }
   try {
@@ -292,10 +292,18 @@ async function syncCurrentUser({ silent = false } = {}) {
     return data;
   } catch (error) {
     clearLocalAuth();
-    if (!silent) setStatus(`登录态失效：${error.message}，请重新登录。`, 'error');
+    if (!silent) setStatus(i18nManager.t('statusAuthFailed', '登录态失效：{{message}}，请重新登录。').replace('{{message}}', error.message), 'error');
     return null;
   }
 }
+
+const i18nManager = createI18nManager({
+  appState,
+  storageKey: storageKeys.language,
+  defaultLanguage: 'zh',
+  setStatus,
+  rerenderCurrentRoute: () => routeController?.rerenderRoute(appState.currentRoute),
+});
 
 const loginAccountManager = createLoginAccountManager({
   appState,
@@ -304,7 +312,7 @@ const loginAccountManager = createLoginAccountManager({
   rerenderRoute: (route) => routeController?.rerenderRoute(route),
 });
 
-const renderers = createRenderers({ appState, timelineData, storageKeys, formatCookies });
+const renderers = createRenderers({ appState, timelineData, storageKeys, formatCookies, i18nManager });
 
 const smartCampusManager = createSmartCampusManager({
   appState,
@@ -372,14 +380,6 @@ const uiManager = createUiManager({
   setStatus,
 });
 
-const i18nManager = createI18nManager({
-  appState,
-  storageKey: storageKeys.language,
-  defaultLanguage: 'zh',
-  setStatus,
-  rerenderCurrentRoute: () => routeController?.rerenderRoute(appState.currentRoute),
-});
-
 const colorManager = {
   defaultColors: { primary: '#1e40af', accent: '#0284c7', danger: '#dc2626' },
   getColors() {
@@ -397,6 +397,10 @@ const colorManager = {
     if (elements.colorPrimaryInput) elements.colorPrimaryInput.value = colors.primary;
     if (elements.colorAccentInput) elements.colorAccentInput.value = colors.accent;
     if (elements.colorDangerInput) elements.colorDangerInput.value = colors.danger;
+    if (window.mdui?.setColorScheme) window.mdui.setColorScheme(colors.primary);
+    const currentMode = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+    if (window.mdui?.setTheme) window.mdui.setTheme(currentMode);
+    uiManager.resyncMduiHostsFromDom();
   },
   saveColors(colors) {
     localStorage.setItem(storageKeys.customColors, JSON.stringify(colors));
@@ -431,7 +435,7 @@ const colorManager = {
     });
     elements.saveColorsButton?.addEventListener('click', () => {
       this.saveColors(live);
-      setStatus('颜色保存成功！', 'success');
+      setStatus(i18nManager.t('statusColorsSaved', '颜色保存成功！'), 'success');
     });
   },
 };
