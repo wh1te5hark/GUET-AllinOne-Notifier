@@ -7,6 +7,7 @@ import { createUiManager } from './modules/ui-manager.js';
 import { createRouteController } from './modules/route-controller.js';
 import { createAppBootstrap } from './modules/app-bootstrap.js';
 import { createI18nManager } from './modules/i18n-manager.js';
+import { createRulesManager } from './modules/rules-manager.js';
 
 const timelineData = [
   { source: '教务处', time: '刚刚', title: '考试安排已更新', detail: '离散数学期末考试从周三晚改到周四下午。' },
@@ -33,6 +34,7 @@ const appState = {
   storedCookies: [],
   currentUser: null,
   realtime: { user: null, health: null, updatedAt: '', loading: false, error: '' },
+  testCollector: { messages: [], loading: false, error: '', updatedAt: '' },
   smartCampus: {
     messages: [],
     loading: false,
@@ -48,6 +50,9 @@ const appState = {
     },
     query: { q: '', sender: '', read_state: 'all', sort_by: 'fetched_at', sort_dir: 'desc' },
   },
+  rules: { items: [], loading: false, error: '', updatedAt: '' },
+  rulesMeta: { collectors: [], pushers: [], error: '' },
+  testPusherFeed: { items: [], loading: false, error: '' },
   login: { recentAccounts: [], autoLoginTried: false },
 };
 
@@ -319,7 +324,19 @@ const smartCampusManager = createSmartCampusManager({
   updateAccountDisplay,
   applyRealtimeToOverviewDom: () => renderers.applyRealtimeToOverviewDom(),
   applySmartCampusToDom: () => renderers.applySmartCampusToDom(),
+  applyTestCollectorToDom: () => renderers.applyTestCollectorToDom(),
   rerenderCollectorsPage: () => routeController?.rerenderRoute('/collectors'),
+});
+
+const rulesManager = createRulesManager({
+  appState,
+  getToken,
+  getApiBase,
+  parseJsonSafely,
+  formatApiError,
+  setStatus,
+  applyRulesToDom: () => renderers.applyRulesToDom(),
+  applyTestPusherFeedToDom: () => renderers.applyTestPusherFeedToDom(),
 });
 
 const authFlow = createAuthFlow({
@@ -490,8 +507,19 @@ routeController = createRouteController({
     syncSmartCampusMessages: smartCampusManager.syncSmartCampusMessages,
     loadSmartCampusMessages: smartCampusManager.loadSmartCampusMessages,
     loadSmartCampusSettings: smartCampusManager.loadSmartCampusSettings,
+    syncTestCollectorMessages: smartCampusManager.syncTestCollectorMessages,
+    loadTestCollectorMessages: smartCampusManager.loadTestCollectorMessages,
+    applyTestCollectorToDom: renderers.applyTestCollectorToDom,
+    loadRules: rulesManager.loadRules,
+    loadRulesMeta: rulesManager.loadRulesMeta,
+    loadTestPusherFeed: rulesManager.loadTestPusherFeed,
+    saveRule: rulesManager.saveRule,
+    resetRuleForm: rulesManager.resetRuleForm,
+    handleRulesListClick: rulesManager.handleRulesListClick,
     applyRealtimeToOverviewDom: renderers.applyRealtimeToOverviewDom,
     applySmartCampusToDom: renderers.applySmartCampusToDom,
+    applyRulesToDom: renderers.applyRulesToDom,
+    applyTestPusherFeedToDom: renderers.applyTestPusherFeedToDom,
     copyCurrentCookies,
     getNoFileSelectedText: () => i18nManager.t('noFileSelected', '未选择文件'),
   },

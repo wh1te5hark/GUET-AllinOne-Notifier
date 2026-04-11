@@ -8,6 +8,7 @@ export function createSmartCampusManager({
   updateAccountDisplay,
   applyRealtimeToOverviewDom,
   applySmartCampusToDom,
+  applyTestCollectorToDom,
   rerenderCollectorsPage,
 }) {
   function isEnglish() {
@@ -174,6 +175,67 @@ export function createSmartCampusManager({
     return appState.smartCampus.messages;
   }
 
+  async function loadTestCollectorMessages(silent = false) {
+    const token = getToken();
+    if (!token) return [];
+    appState.testCollector.loading = true;
+    appState.testCollector.error = '';
+    applyTestCollectorToDom?.();
+    try {
+      const response = await fetch(`${getApiBase()}/api/v1/collectors/test/messages`, {
+        mode: 'cors',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await parseJsonSafely(response);
+      if (!response.ok) throw new Error(formatApiError(data.detail, `读取失败（${response.status}）`));
+      appState.testCollector.messages = Array.isArray(data) ? data : [];
+      appState.testCollector.updatedAt = new Date().toLocaleTimeString();
+      if (!silent) setStatus(`已加载 ${appState.testCollector.messages.length} 条测试采集通知。`, 'success');
+    } catch (error) {
+      appState.testCollector.error = isEnglish()
+        ? `Test collector load failed: ${error.message}`
+        : `读取测试采集通知失败：${error.message}`;
+      if (!silent) setStatus(appState.testCollector.error, 'error');
+    } finally {
+      appState.testCollector.loading = false;
+      applyTestCollectorToDom?.();
+    }
+    return appState.testCollector.messages;
+  }
+
+  async function syncTestCollectorMessages() {
+    const token = getToken();
+    if (!token) return setStatus('请先登录后再同步采集器。', 'error');
+    appState.testCollector.loading = true;
+    appState.testCollector.error = '';
+    applyTestCollectorToDom?.();
+    try {
+      const response = await fetch(`${getApiBase()}/api/v1/collectors/test/messages/sync`, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await parseJsonSafely(response);
+      if (!response.ok) throw new Error(formatApiError(data.detail, `同步失败（${response.status}）`));
+      appState.testCollector.messages = Array.isArray(data.messages) ? data.messages : [];
+      appState.testCollector.updatedAt = new Date().toLocaleTimeString();
+      setStatus(
+        isEnglish()
+          ? `Test collector: injected ${data.fetched_count}, new rows ${data.saved_count}. Rules may have run.`
+          : `测试采集器：注入 ${data.fetched_count} 条，新增 ${data.saved_count} 条（已尝试执行转发规则）。`,
+        'success',
+      );
+    } catch (error) {
+      appState.testCollector.error = isEnglish()
+        ? `Test collector sync failed: ${error.message}`
+        : `测试采集器同步失败：${error.message}`;
+      setStatus(appState.testCollector.error, 'error');
+    } finally {
+      appState.testCollector.loading = false;
+      applyTestCollectorToDom?.();
+    }
+  }
+
   async function syncSmartCampusMessages() {
     const token = getToken();
     if (!token) return setStatus('请先登录后再同步采集器。', 'error');
@@ -212,5 +274,7 @@ export function createSmartCampusManager({
     resetSmartCampusQuery,
     loadSmartCampusMessages,
     syncSmartCampusMessages,
+    loadTestCollectorMessages,
+    syncTestCollectorMessages,
   };
 }

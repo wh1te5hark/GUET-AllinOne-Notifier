@@ -24,6 +24,7 @@ dist/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+test/
 tests/
 *.log
 

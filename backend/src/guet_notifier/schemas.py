@@ -117,3 +117,61 @@ class SmartCampusCollectorSetting(BaseModel):
     visual_mode: str = "every_n_minutes"  # every_n_minutes | daily_time
     interval_minutes: int = 30
     daily_time: str = "08:00"
+
+
+class RuleMatchPayload(BaseModel):
+    mode: str = "all"  # all | any
+    include_any: list[str] = Field(default_factory=list)
+    exclude_any: list[str] = Field(default_factory=list)
+    use_regex: bool = False
+
+
+class RuleTemplatePayload(BaseModel):
+    subject: str = "{{title}}"
+    body: str = "{{content_text}}"
+
+
+class RuleConfigPayload(BaseModel):
+    sources: list[str] = Field(default_factory=list)
+    match: RuleMatchPayload = Field(default_factory=RuleMatchPayload)
+    template: RuleTemplatePayload = Field(default_factory=RuleTemplatePayload)
+    channel_keys: list[str] = Field(default_factory=lambda: ["debug_log"])
+
+
+class RuleCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    enabled: bool = True
+    config: RuleConfigPayload = Field(default_factory=RuleConfigPayload)
+
+
+class RuleUpdateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    enabled: bool = True
+    config: RuleConfigPayload = Field(default_factory=RuleConfigPayload)
+
+
+class RuleResponse(BaseModel):
+    id: int
+    name: str
+    enabled: bool
+    config: RuleConfigPayload
+    created_at: str
+    updated_at: str
+
+
+class CatalogItemResponse(BaseModel):
+    key: str
+    label_zh: str
+    label_en: str
+
+
+class TestPusherDeliveryResponse(BaseModel):
+    id: int
+    rule_id: int
+    notification_item_id: int
+    title: str
+    subject: str
+    body: str
+    source: str
+    external_id: str
+    created_at: str

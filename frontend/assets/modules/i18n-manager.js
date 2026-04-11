@@ -49,6 +49,7 @@ export function createI18nManager({
 
     text('.topbar-actions mdui-button[href="#/home"]', dict.topHome);
     text('.topbar-actions mdui-button[href="#/overview"]', dict.topOverview);
+    text('.topbar-actions mdui-button[href="#/rules"]', dict.topRules);
     text('mdui-list-item[href="#/home"]', dict.drawerHome);
     text('mdui-list-item[href="#/login"]', dict.drawerLogin);
     text('mdui-list-item[href="#/overview"]', dict.drawerOverview);
@@ -71,9 +72,36 @@ export function createI18nManager({
     text('.drawer-color-panel .drawer-color-title:nth-of-type(2)', dict.presetTitle);
     text('#reset-colors-btn', dict.resetColors);
     text('#save-colors-btn', dict.saveColors);
+    text('#test-collector-title', dict.testCollectorTitle);
+    text('#test-collector-desc', dict.testCollectorDesc);
+    text('#sync-test-collector-btn', dict.syncTestCollectorBtn);
+    text('#refresh-test-collector-btn', dict.refreshTestCollectorBtn);
     text('#drawer-logout-btn', dict.drawerLogout);
     text('#menu-profile-btn', dict.menuProfile);
     text('#menu-logout-btn', dict.menuLogout);
+    text('#rules-page-title', dict.rulesPageTitle);
+    text('#rules-page-desc', dict.rulesPageDesc);
+    text('#rules-form-title', dict.rulesFormTitle);
+    text('#rules-list-title', dict.rulesListTitle);
+    text('#refresh-rules-btn', dict.rulesRefreshBtn);
+    text('#rule-reset-btn', dict.rulesResetBtn);
+    text('#rule-save-btn', dict.rulesSaveBtn);
+    attr('#rule-name', 'label', dict.rulesNameLabel);
+    text('#rule-sources-label', dict.rulesSourcesSectionLabel);
+    text('#rule-sources-hint', dict.rulesSourcesHint);
+    text('#rule-pushers-label', dict.rulesPushersSectionLabel);
+    text('#rule-pushers-hint', dict.rulesPushersHint);
+    text('#test-pusher-feed-title', dict.testPusherFeedTitle);
+    text('#test-pusher-feed-desc', dict.testPusherFeedDesc);
+    text('#refresh-test-pusher-btn', dict.testPusherRefreshBtn);
+    attr('#rule-match-mode', 'label', dict.rulesMatchModeLabel);
+    text('#rule-match-mode mdui-menu-item[value="all"]', dict.rulesMatchAll);
+    text('#rule-match-mode mdui-menu-item[value="any"]', dict.rulesMatchAny);
+    text('#rule-use-regex', dict.rulesUseRegex);
+    attr('#rule-include-any', 'label', dict.rulesIncludeLabel);
+    attr('#rule-exclude-any', 'label', dict.rulesExcludeLabel);
+    attr('#rule-template-subject', 'label', dict.rulesTemplateSubjectLabel);
+    attr('#rule-template-body', 'label', dict.rulesTemplateBodyLabel);
 
     attr('#cas-login-form [name="student_id"]', 'label', dict.studentIdLabel);
     attr('#cas-login-form [name="password"]', 'label', dict.passwordLabel);

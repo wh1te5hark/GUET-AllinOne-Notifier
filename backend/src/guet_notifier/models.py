@@ -99,3 +99,51 @@ class CollectorSetting(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+
+class SubscriptionRule(Base):
+    __tablename__ = "subscription_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
+    name: Mapped[str] = mapped_column(String(128), default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Legacy compatibility: some existing DBs use rule_config.
+    rule_config: Mapped[str] = mapped_column(Text, default="{}")
+    rule_config_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
+class PushAttempt(Base):
+    __tablename__ = "push_attempts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
+    notification_item_id: Mapped[int] = mapped_column(Integer, index=True)
+    rule_id: Mapped[int] = mapped_column(Integer, index=True)
+    channel_key: Mapped[str] = mapped_column(String(64), index=True, default="debug_log")
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending | success | failed
+    error_message: Mapped[str] = mapped_column(Text, default="")
+    sent_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+
+
+class TestPusherDelivery(Base):
+    """Rows written by the test_db pusher for UI/debug integration."""
+
+    __tablename__ = "test_pusher_deliveries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
+    rule_id: Mapped[int] = mapped_column(Integer, index=True, default=0)
+    notification_item_id: Mapped[int] = mapped_column(Integer, index=True, default=0)
+    title: Mapped[str] = mapped_column(String(255), default="")
+    subject: Mapped[str] = mapped_column(String(512), default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    source: Mapped[str] = mapped_column(String(64), default="")
+    external_id: Mapped[str] = mapped_column(String(128), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
