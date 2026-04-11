@@ -26,7 +26,7 @@ poetry run guet-notifier
 poetry run dev
 ```
 
-默认启动在本机 8080 端口, 可在 env 中进行修改  
+默认启动在本机 8000 端口，可在 env 中进行修改  
 
 - 健康检查：<http://127.0.0.1:8000/health>
 - OpenAPI 文档：<http://127.0.0.1:8000/docs>
@@ -47,6 +47,7 @@ poetry run pytest
 - 使用 **MDUI 2**，不依赖外部 CDN 以加快加载速度(嗯，取决于你托管在哪)
 - 不使用 npm / Vite / Webpack 等黑洞级技术栈，不需要在电脑里留下一坨 node_modules
 - 默认后端地址为 `http://127.0.0.1:8000`，可在页面表单中修改。
+- 已知问题与排障说明见 [docs/KNOWN_BUGS.md](docs/KNOWN_BUGS.md)。
 - 登录成功后，access token 存储在浏览器本地存储中，供演示阶段调用 `/api/v1/me`。
 - 登录页支持通过 Cookies 直接换取会话（`/api/v1/auth/cas/cookie-login`）。
 - 登录页支持保存密码与自动登录（仅前端本地加密存储，不上传后端）。
