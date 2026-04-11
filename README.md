@@ -41,6 +41,10 @@ poetry run pytest
 ## 前端
 
 `frontend/` 是纯静态文件，部署到任意静态托管环境即可使用。后端已增加跨域头
+```bash
+python -m http.server 
+# 以上默认绑定在本机 8000 端口, 如需开在其他端口，请在命令后面跟上端口号
+```bash
 
 前端特性：
 
@@ -50,6 +54,9 @@ poetry run pytest
 - 登录成功后，access token 存储在浏览器本地存储中，供演示阶段调用 `/api/v1/me`。
 - 登录页支持通过 Cookies 直接换取会话（`/api/v1/auth/cas/cookie-login`）。
 - 登录页支持保存密码与自动登录（仅前端本地加密存储，不上传后端）。
+- 已提供转发规则管理接口（`/api/v1/rules`）与规则页（采集器来源 / 推送器多选、测试推送记录）。
+- 公开目录：`GET /api/v1/meta/collectors`、`GET /api/v1/meta/pushers`；测试推送落库：`channel_keys` 含 `test_db` 后同步消息，另可 `GET /api/v1/pushers/test-deliveries` 拉取记录。
+- 测试采集器：`POST /api/v1/collectors/test/messages/sync`（需登录，无需 CAS）注入 `source=test_collector` 的合成通知并执行规则；`GET /api/v1/collectors/test/messages` 列出该来源通知。
 
 
 前端文件组成：  
@@ -66,6 +73,7 @@ poetry run pytest
   - `modules/profile-session-manager.js`（用户资料、会话恢复、概览刷新）
   - `modules/renderers.js`（页面渲染与局部 DOM 回填）
   - `modules/smart-campus-manager.js`（采集器设置与消息同步）
+  - `modules/rules-manager.js`（转发规则 CRUD，对接 `/api/v1/rules`）
   - `modules/ui-manager.js`（主题切换、头像菜单与抽屉交互）
 - i18n 词典外置：
   - `assets/i18n/zh-CN.json`

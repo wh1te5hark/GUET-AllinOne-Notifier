@@ -677,6 +677,56 @@ html[data-theme="dark"] .wechat-qr-overlay {
   overflow: auto;
 }
 
+#rules-list button {
+  border: 1px solid var(--guet-line);
+  background: var(--guet-surface-soft);
+  color: var(--guet-text);
+  border-radius: 8px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+}
+
+#rules-list button[data-action='delete'] {
+  color: var(--guet-danger);
+}
+
+.rule-field-block {
+  margin: 0.35rem 0;
+}
+
+.rule-field-label {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  color: var(--guet-text);
+}
+
+.rule-field-hint {
+  margin: 0 0 0.5rem !important;
+}
+
+.rule-multi-box {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.35rem 0 0.6rem;
+}
+
+.rule-check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.rule-check-row input {
+  flex-shrink: 0;
+}
+
+.timeline-meta {
+  font-size: 0.82rem;
+  opacity: 0.88;
+  margin: 0.15rem 0 0.35rem;
+}
+
 .timeline-item,
 .simple-row,
 .result-card {

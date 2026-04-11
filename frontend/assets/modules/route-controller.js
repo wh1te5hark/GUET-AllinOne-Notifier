@@ -87,9 +87,43 @@ export function createRouteController({
       queryInRoute('#refresh-smart-campus-btn')?.addEventListener('click', () => {
         void handlers.loadSmartCampusMessages?.();
       });
+      queryInRoute('#sync-test-collector-btn')?.addEventListener('click', () => {
+        void handlers.syncTestCollectorMessages?.();
+      });
+      queryInRoute('#refresh-test-collector-btn')?.addEventListener('click', () => {
+        void handlers.loadTestCollectorMessages?.();
+      });
       handlers.toggleSmartCampusScheduleMode?.();
       void handlers.loadSmartCampusSettings?.(true).then(() => handlers.applySmartCampusToDom?.());
       void handlers.loadSmartCampusMessages?.(true).then(() => handlers.applySmartCampusToDom?.());
+      void handlers.loadTestCollectorMessages?.(true).then(() => handlers.applyTestCollectorToDom?.());
+    }
+
+    if (route === '/rules') {
+      queryInRoute('#refresh-rules-btn')?.addEventListener('click', () => {
+        void handlers.loadRules?.().then(() => handlers.loadTestPusherFeed?.(true));
+      });
+      queryInRoute('#refresh-test-pusher-btn')?.addEventListener('click', () => {
+        void handlers.loadTestPusherFeed?.();
+      });
+      queryInRoute('#rule-save-btn')?.addEventListener('click', () => {
+        void handlers.saveRule?.();
+      });
+      queryInRoute('#rule-reset-btn')?.addEventListener('click', () => handlers.resetRuleForm?.());
+      queryInRoute('#rules-list')?.addEventListener('click', (event) => {
+        void handlers.handleRulesListClick?.(event);
+      });
+      void handlers
+        .loadRulesMeta?.(true)
+        .then(() => {
+          handlers.resetRuleForm?.();
+          return handlers.loadRules?.(true);
+        })
+        .then(() => {
+          handlers.applyRulesToDom?.();
+          return handlers.loadTestPusherFeed?.(true);
+        })
+        .then(() => handlers.applyTestPusherFeedToDom?.());
     }
   }
 

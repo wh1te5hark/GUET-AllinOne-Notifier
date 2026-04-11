@@ -4,6 +4,32 @@ export function createRenderers({
   storageKeys,
   formatCookies,
 }) {
+  function esc(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function catalogLabel(list, key) {
+    const it = (list || []).find((x) => x.key === key);
+    const lang = localStorage.getItem('guet_notifier_language') === 'en' ? 'en' : 'zh';
+    const raw = it ? (lang === 'en' ? it.label_en : it.label_zh) : key;
+    return esc(raw);
+  }
+
+  function formatRuleSourcesForDisplay(sources) {
+    const meta = appState.rulesMeta?.collectors || [];
+    if (!sources?.length) return '全部来源';
+    return sources.map((k) => catalogLabel(meta, k)).join('、');
+  }
+
+  function formatRulePushersForDisplay(keys) {
+    const meta = appState.rulesMeta?.pushers || [];
+    return (keys || []).map((k) => catalogLabel(meta, k)).join('、') || esc('debug_log');
+  }
+
   function renderTimeline(containerId) {
     const container = document.querySelector(`#${containerId}`);
     if (!container) return;
@@ -32,6 +58,7 @@ export function createRenderers({
         <div class="overview-actions">
           <mdui-button variant="filled" href="#/login">连接 CAS</mdui-button>
           <mdui-button variant="outlined" href="#/overview">查看概览</mdui-button>
+          <mdui-button variant="outlined" href="#/rules">转发规则</mdui-button>
         </div>
       </div>
       <div class="summary-grid">
@@ -191,8 +218,24 @@ export function createRenderers({
     const emptyHint = isEn ? 'No notices yet, click "Sync Messages" first.' : '暂无通知，先点击“同步通知”。';
 
     const sc = appState.smartCampus;
+    const tc = appState.testCollector || { messages: [], loading: false, error: '', updatedAt: '' };
     const s = sc.setting || {};
     const q = sc.query || {};
+    const tcRows = (tc.messages || [])
+      .map(
+        (item) => `
+      <article class="timeline-item">
+        <header>
+          <strong>${item.sender || senderFallback}</strong>
+          <time>${item.occurred_at_text || item.fetched_at || '--'}</time>
+        </header>
+        <div class="timeline-title">${item.title || untitled}</div>
+        <p style="margin:0.25rem 0;color:var(--guet-muted);font-size:0.85rem;">${statusLabel}: ${item.is_marked_read ? readText : unreadText} | source: ${item.source || '--'} | ${item.external_id || '--'}</p>
+        <p>${item.content_text || item.content_html || ''}</p>
+      </article>
+    `,
+      )
+      .join('');
     const rows = (sc.messages || [])
       .map((item) => `
       <article class="timeline-item">
@@ -240,6 +283,18 @@ export function createRenderers({
         <div id="smart-campus-status" class="result-card ${sc.error ? 'error' : 'muted'}" style="margin-top:0.8rem">
           ${sc.error ? sc.error : (sc.loading ? '正在同步智慧校园通知…' : `最近更新时间：${sc.updatedAt || '--'}`)}
         </div>
+      </mdui-card>
+      <mdui-card class="panel-card" style="grid-column:1 / -1">
+        <div class="panel-title" id="test-collector-title">测试采集器（联调）</div>
+        <p class="panel-desc" id="test-collector-desc">无需 CAS：每次点击会注入两条合成通知（source=test_collector）并执行转发规则，可与「测试推送」配合验证全链路。</p>
+        <div class="overview-actions" style="margin-top:0.6rem">
+          <mdui-button type="button" variant="filled" id="sync-test-collector-btn">注入测试通知</mdui-button>
+          <mdui-button type="button" variant="outlined" id="refresh-test-collector-btn">刷新测试列表</mdui-button>
+        </div>
+        <div id="test-collector-status" class="result-card ${tc.error ? 'error' : 'muted'}" style="margin-top:0.75rem">
+          ${tc.error ? tc.error : (tc.loading ? (isEn ? 'Working…' : '处理中…') : `${isEn ? 'Last updated' : '最近更新时间'}：${tc.updatedAt || '--'}`)}
+        </div>
+        <div id="test-collector-list" class="timeline" style="margin-top:0.75rem">${tcRows || `<p class="panel-desc">${isEn ? 'No test notices yet.' : '暂无测试通知，先点击「注入测试通知」。'}</p>`}</div>
       </mdui-card>
       <mdui-card class="panel-card" style="grid-column:1 / -1">
         <div class="panel-title">通知列表</div>
@@ -298,18 +353,100 @@ export function createRenderers({
   `;
   }
 
+  function renderRules() {
+    const rulesState = appState.rules || { items: [], loading: false, error: '', updatedAt: '' };
+    const rows = (rulesState.items || [])
+      .map((rule) => {
+        const sources = formatRuleSourcesForDisplay(rule.config?.sources);
+        const channels = formatRulePushersForDisplay(rule.config?.channel_keys);
+        const includeAny = esc((rule.config?.match?.include_any || []).join('，') || '无');
+        const excludeAny = esc((rule.config?.match?.exclude_any || []).join('，') || '无');
+        const mode = rule.config?.match?.mode === 'any' ? '任一命中' : '全部命中';
+        return `
+      <article class="timeline-item">
+        <header>
+          <strong>${esc(rule.name)}</strong>
+          <time>${rule.enabled ? '启用中' : '已停用'}</time>
+        </header>
+        <p>来源：${sources}</p>
+        <p>匹配模式：${mode} | 包含：${includeAny} | 排除：${excludeAny}</p>
+        <p>推送器：${channels}</p>
+        <p style="font-size:0.82rem;">更新时间：${esc(rule.updated_at || '--')}</p>
+        <div class="overview-actions" style="margin-top:0.55rem">
+          <button type="button" data-action="edit" data-rule-id="${rule.id}">编辑</button>
+          <button type="button" data-action="toggle" data-rule-id="${rule.id}">${rule.enabled ? '禁用' : '启用'}</button>
+          <button type="button" data-action="delete" data-rule-id="${rule.id}">删除</button>
+        </div>
+      </article>
+    `;
+      })
+      .join('');
+    return `
+    <section class="lower-grid">
+      <mdui-card class="panel-card" style="grid-column:1 / -1">
+        <div class="panel-title" id="rules-page-title">转发规则</div>
+        <p class="panel-desc" id="rules-page-desc">基于通知内容匹配条件，将命中的通知按模板路由到指定渠道。</p>
+        <div id="rules-status" class="result-card ${rulesState.error ? 'error' : 'muted'}">
+          ${rulesState.error ? rulesState.error : (rulesState.loading ? '正在加载规则…' : `最近更新时间：${rulesState.updatedAt || '--'}`)}
+        </div>
+        <div class="overview-actions" style="margin-top:0.7rem">
+          <mdui-button type="button" variant="outlined" id="refresh-rules-btn">刷新规则</mdui-button>
+          <mdui-button type="button" variant="text" id="rule-reset-btn">重置表单</mdui-button>
+        </div>
+      </mdui-card>
+      <mdui-card class="panel-card" style="grid-column:1 / -1">
+        <div class="panel-title" id="rules-form-title">创建 / 编辑规则</div>
+        <input id="rule-id" type="hidden" />
+        <div class="login-form">
+          <mdui-text-field id="rule-name" label="规则名称" variant="outlined"></mdui-text-field>
+          <mdui-switch id="rule-enabled" checked>启用规则</mdui-switch>
+          <div class="rule-field-block">
+            <div class="rule-field-label" id="rule-sources-label">通知来源（采集器）</div>
+            <p class="panel-desc rule-field-hint" id="rule-sources-hint">不勾选表示匹配全部来源。</p>
+            <div id="rule-sources-box" class="rule-multi-box"></div>
+          </div>
+          <mdui-select id="rule-match-mode" label="匹配模式" value="all" variant="outlined">
+            <mdui-menu-item value="all">全部关键字命中</mdui-menu-item>
+            <mdui-menu-item value="any">任一关键字命中</mdui-menu-item>
+          </mdui-select>
+          <mdui-switch id="rule-use-regex">使用正则匹配</mdui-switch>
+          <mdui-text-field id="rule-include-any" label="包含关键字（逗号或换行）" variant="outlined"></mdui-text-field>
+          <mdui-text-field id="rule-exclude-any" label="排除关键字（逗号或换行）" variant="outlined"></mdui-text-field>
+          <mdui-text-field id="rule-template-subject" label="主题模板" variant="outlined" value="{{title}}"></mdui-text-field>
+          <mdui-text-field id="rule-template-body" label="正文模板" variant="outlined" value="{{content_text}}"></mdui-text-field>
+          <div class="rule-field-block">
+            <div class="rule-field-label" id="rule-pushers-label">推送器（可多选）</div>
+            <p class="panel-desc rule-field-hint" id="rule-pushers-hint">至少选择一项；测试联调可选「测试推送」将内容写入数据库并在下方列表展示。</p>
+            <div id="rule-pushers-box" class="rule-multi-box"></div>
+          </div>
+        </div>
+        <div class="overview-actions" style="margin-top:0.8rem">
+          <mdui-button type="button" variant="filled" id="rule-save-btn">创建规则</mdui-button>
+        </div>
+      </mdui-card>
+      <mdui-card class="panel-card" style="grid-column:1 / -1">
+        <div class="panel-title" id="test-pusher-feed-title">测试推送记录</div>
+        <p class="panel-desc" id="test-pusher-feed-desc">由「测试推送」渠道写入，用于与规则转发联调。</p>
+        <div id="test-pusher-feed-status" class="result-card muted"></div>
+        <div class="overview-actions" style="margin-top:0.55rem">
+          <mdui-button type="button" variant="outlined" id="refresh-test-pusher-btn">刷新记录</mdui-button>
+        </div>
+        <div id="test-pusher-feed-list" class="timeline" style="margin-top:0.75rem"></div>
+      </mdui-card>
+      <mdui-card class="panel-card" style="grid-column:1 / -1">
+        <div class="panel-title" id="rules-list-title">规则列表</div>
+        <div id="rules-list" class="timeline">${rows || '<p class="panel-desc">暂无规则，请先创建。</p>'}</div>
+      </mdui-card>
+    </section>
+  `;
+  }
+
   function renderRoute(route) {
     if (route === '/home') return renderHome();
     if (route === '/login') return renderLogin();
     if (route === '/overview') return renderOverview();
     if (route === '/collectors') return renderCollectors();
-    if (route === '/rules') {
-      return renderSkeleton('转发规则', [
-        { title: '触发条件', label: '关键词 / 优先级', desc: '支持包含、排除、正则等条件。', status: '骨架' },
-        { title: '消息模板', label: '文本模板', desc: '主题、正文、变量映射占位。', status: '骨架' },
-        { title: '渠道路由', label: '多渠道', desc: '按规则选择推送渠道。', status: '骨架' },
-      ]);
-    }
+    if (route === '/rules') return renderRules();
     if (route === '/pushers') {
       return renderSkeleton('推送器', [
         { title: 'OneBot', label: 'QQ 机器人', desc: '连接地址与鉴权配置。', status: '骨架' },
@@ -354,6 +491,46 @@ export function createRenderers({
     }
   }
 
+  function applyTestCollectorToDom() {
+    if (appState.currentRoute !== '/collectors') return;
+    const lang = localStorage.getItem('guet_notifier_language') || 'zh';
+    const isEn = lang === 'en';
+    const senderFallback = isEn ? 'System Notice' : '系统通知';
+    const untitled = isEn ? '(Untitled)' : '(无标题)';
+    const readText = isEn ? 'Read' : '已读';
+    const unreadText = isEn ? 'Unread' : '未读';
+    const statusLabel = isEn ? 'Status' : '状态';
+    const emptyHint = isEn ? 'No test notices yet.' : '暂无测试通知，先点击「注入测试通知」。';
+    const tc = appState.testCollector || { messages: [], loading: false, error: '', updatedAt: '' };
+    const statusNode = document.querySelector('#test-collector-status');
+    const listNode = document.querySelector('#test-collector-list');
+    if (statusNode) {
+      statusNode.className = `result-card ${tc.error ? 'error' : 'muted'}`;
+      statusNode.textContent = tc.error
+        ? tc.error
+        : tc.loading
+          ? (isEn ? 'Working…' : '处理中…')
+          : `${isEn ? 'Last updated' : '最近更新时间'}：${tc.updatedAt || '--'}`;
+    }
+    if (!listNode) return;
+    if (!tc.messages?.length) {
+      listNode.innerHTML = `<p class="panel-desc">${emptyHint}</p>`;
+      return;
+    }
+    listNode.innerHTML = tc.messages
+      .map(
+        (item) => `
+      <article class="timeline-item">
+        <header><strong>${item.sender || senderFallback}</strong><time>${item.occurred_at_text || item.fetched_at || '--'}</time></header>
+        <div class="timeline-title">${item.title || untitled}</div>
+        <p style="margin:0.25rem 0;color:var(--guet-muted);font-size:0.85rem;">${statusLabel}: ${item.is_marked_read ? readText : unreadText} | source: ${item.source || '--'} | ${item.external_id || '--'}</p>
+        <p>${item.content_text || item.content_html || ''}</p>
+      </article>
+    `,
+      )
+      .join('');
+  }
+
   function applySmartCampusToDom() {
     const lang = localStorage.getItem('guet_notifier_language') || 'zh';
     const isEn = lang === 'en';
@@ -389,10 +566,93 @@ export function createRenderers({
     }
   }
 
+  function applyRulesToDom() {
+    if (appState.currentRoute !== '/rules') return;
+    const rulesState = appState.rules || { items: [], loading: false, error: '', updatedAt: '' };
+    const statusNode = document.querySelector('#rules-status');
+    const listNode = document.querySelector('#rules-list');
+    if (statusNode) {
+      statusNode.className = `result-card ${rulesState.error ? 'error' : 'muted'}`;
+      statusNode.textContent = rulesState.error
+        ? rulesState.error
+        : (rulesState.loading ? '正在加载规则…' : `最近更新时间：${rulesState.updatedAt || '--'}`);
+    }
+    if (!listNode) return;
+    if (!rulesState.items?.length) {
+      listNode.innerHTML = '<p class="panel-desc">暂无规则，请先创建。</p>';
+      return;
+    }
+    listNode.innerHTML = rulesState.items
+      .map((rule) => {
+        const sources = formatRuleSourcesForDisplay(rule.config?.sources);
+        const channels = formatRulePushersForDisplay(rule.config?.channel_keys);
+        const includeAny = esc((rule.config?.match?.include_any || []).join('，') || '无');
+        const excludeAny = esc((rule.config?.match?.exclude_any || []).join('，') || '无');
+        const mode = rule.config?.match?.mode === 'any' ? '任一命中' : '全部命中';
+        return `
+      <article class="timeline-item">
+        <header><strong>${esc(rule.name)}</strong><time>${rule.enabled ? '启用中' : '已停用'}</time></header>
+        <p>来源：${sources}</p>
+        <p>匹配模式：${mode} | 包含：${includeAny} | 排除：${excludeAny}</p>
+        <p>推送器：${channels}</p>
+        <p style="font-size:0.82rem;">更新时间：${esc(rule.updated_at || '--')}</p>
+        <div class="overview-actions" style="margin-top:0.55rem">
+          <button type="button" data-action="edit" data-rule-id="${rule.id}">编辑</button>
+          <button type="button" data-action="toggle" data-rule-id="${rule.id}">${rule.enabled ? '禁用' : '启用'}</button>
+          <button type="button" data-action="delete" data-rule-id="${rule.id}">删除</button>
+        </div>
+      </article>
+      `;
+      })
+      .join('');
+  }
+
+  function applyTestPusherFeedToDom() {
+    if (appState.currentRoute !== '/rules') return;
+    const feed = appState.testPusherFeed || { items: [], loading: false, error: '' };
+    const statusEl = document.querySelector('#test-pusher-feed-status');
+    const listEl = document.querySelector('#test-pusher-feed-list');
+    if (statusEl) {
+      const lang = localStorage.getItem('guet_notifier_language') === 'en' ? 'en' : 'zh';
+      if (feed.error) {
+        statusEl.className = 'result-card error';
+        statusEl.textContent = feed.error;
+      } else if (feed.loading) {
+        statusEl.className = 'result-card muted';
+        statusEl.textContent = lang === 'en' ? 'Loading…' : '正在加载…';
+      } else {
+        statusEl.className = 'result-card muted';
+        statusEl.textContent =
+          lang === 'en'
+            ? `${feed.items?.length || 0} record(s). Sync messages after saving a rule with Test DB pusher.`
+            : `共 ${feed.items?.length || 0} 条。保存含「测试推送」的规则后同步采集消息即可产生记录。`;
+      }
+    }
+    if (!listEl) return;
+    if (!feed.items?.length) {
+      listEl.innerHTML = `<p class="panel-desc">${localStorage.getItem('guet_notifier_language') === 'en' ? 'No test deliveries yet.' : '暂无测试推送记录。'}</p>`;
+      return;
+    }
+    listEl.innerHTML = feed.items
+      .map(
+        (row) => `
+      <article class="timeline-item">
+        <header><strong>${esc(row.subject || row.title || '(无主题)')}</strong><time>${esc(row.created_at)}</time></header>
+        <p class="timeline-meta">${esc(row.source)} · rule #${esc(String(row.rule_id))} · msg #${esc(String(row.notification_item_id))}</p>
+        <div class="timeline-title">${esc(row.title)}</div>
+        <p>${esc(row.body)}</p>
+      </article>`,
+      )
+      .join('');
+  }
+
   return {
     renderTimeline,
     renderRoute,
     applyRealtimeToOverviewDom,
     applySmartCampusToDom,
+    applyTestCollectorToDom,
+    applyRulesToDom,
+    applyTestPusherFeedToDom,
   };
 }
