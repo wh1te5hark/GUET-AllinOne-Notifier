@@ -44,7 +44,7 @@ poetry run pytest
 ```bash
 python -m http.server 
 # 以上默认绑定在本机 8000 端口, 如需开在其他端口，请在命令后面跟上端口号
-```bash
+```
 
 前端特性：
 
